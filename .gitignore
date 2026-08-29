@@ -13,3 +13,4 @@ frontend/node_modules/
 frontend/node_modules.backend-stale/
 frontend/dist/
 frontend/build/
+backend/artifacts/openai/

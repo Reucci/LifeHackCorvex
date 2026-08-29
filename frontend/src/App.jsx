@@ -20,7 +20,7 @@ import { clearAuth, loadAuth, logout as apiLogout } from './utils/auth';
 import { notifyNewQuest, requestNotificationPermission } from './utils/notifications';
 import {
   completeQuest, getAreas, getBadges, getCurrentQuest, getHistory, getMe,
-  getPreferences, getStats, resetProgress, savePreferences,
+  getEcolingMessage, getPreferences, getStats, resetProgress, savePreferences, verifyQuestEvidence,
 } from './utils/api';
 import './css/App.css';
 
@@ -80,6 +80,7 @@ export default function App() {
   const [celebration, setCelebration] = useState(null);
   const [verificationTask, setVerificationTask] = useState(null);
   const [namePromptDismissed, setNamePromptDismissed] = useState(false);
+  const [aiEcolingMessage, setAiEcolingMessage] = useState('');
   const authUserId = auth?.user?.id;
 
   const showToast = useCallback((message) => {
@@ -144,16 +145,30 @@ export default function App() {
     });
   }, [quest, prefs?.reminders, prefs?.quiet_hours, prefs?.quietHours, auth?.guest, authUserId]);
 
-  if (!auth) return <div className="app-container"><Login onAuthed={(next) => { setAuth(next); setView('home'); }} /></div>;
-
   const guestWeather = MOCK_WEATHER;
   const guestSuggestion = pickSuggestion(guestWeather);
   const guestDifficulty = difficultyFor(guestWeather);
   const guestPoints = Math.round(25 * guestDifficulty);
-  const sky = skyForWeather(auth.guest ? guestWeather : quest?.weather, auth.guest);
-  const done = auth.guest ? isDoneToday(state) : Boolean(quest?.completed);
+  const sky = skyForWeather(auth?.guest ? guestWeather : quest?.weather, auth?.guest);
+  const done = auth?.guest ? isDoneToday(state) : Boolean(quest?.completed);
   const mood = petMood(state);
   const emotion = mood.emotion;
+  const ecolingName = prefs?.ecoling_name ?? prefs?.ecolingName ?? '';
+
+  useEffect(() => {
+    if (!auth?.token || auth.guest || !ecolingName || !['home', 'sprout'].includes(view)) {
+      setAiEcolingMessage('');
+      return;
+    }
+    let active = true;
+    const context = view === 'sprout' ? 'care' : done ? 'quest-complete' : 'home';
+    getEcolingMessage({ name: ecolingName, mood: emotion, streak: state.streak, context })
+      .then((result) => { if (active) setAiEcolingMessage(result.available ? result.message : ''); })
+      .catch(() => { if (active) setAiEcolingMessage(''); });
+    return () => { active = false; };
+  }, [auth?.token, auth?.guest, ecolingName, view, done, emotion, state.streak, quest?.quest_id]);
+
+  if (!auth) return <div className="app-container"><Login onAuthed={(next) => { setAuth(next); setView('home'); }} /></div>;
 
   const chooseArea = (name) => {
     setAreaName(name); setQuest(null);
@@ -202,7 +217,13 @@ export default function App() {
     else await resetProgress();
     window.location.reload();
   };
-  const ecolingName = prefs?.ecoling_name ?? prefs?.ecolingName ?? '';
+
+  const handleVerificationCheck = async (photo) => {
+    if (auth.guest) {
+      return { verdict: 'uncertain', reason: 'Guest mode uses manual confirmation.', safety_concern: false };
+    }
+    return verifyQuestEvidence(quest.quest_id, verificationTask.questKey, photo);
+  };
   const handleEcolingName = async (name) => {
     await handlePrefs({ ...prefs, ecoling_name: name });
     setNamePromptDismissed(false);
@@ -212,10 +233,10 @@ export default function App() {
   return (
     <div className={`app-container weather-bg weather-bg--${sky}`} style={{ backgroundImage: `url("${skyImage(sky)}")` }}>
       {view !== 'verify' && <Header title={headerCfg.title} action={headerCfg.action} onMenu={() => setMenuOpen(true)} onAction={() => setView('settings')} />}
-      {view === 'verify' && <CameraVerification task={verificationTask?.task || { action: 'Complete your task', icon: '🌱' }} onVerified={handleVerified} onCancel={() => { setVerificationTask(null); setView('home'); }} />}
-      {view === 'home' && <Home guest={auth.guest} ecolingName={ecolingName} weather={auth.guest ? guestWeather : quest?.weather} guestSuggestion={guestSuggestion} guestDifficulty={guestDifficulty} guestPoints={guestPoints} quest={quest} areas={areas} areaName={areaName} onAreaChange={chooseArea} done={done} emotion={emotion} streak={state.streak} totalPoints={state.totalPoints} busy={busy} error={error} onComplete={handleComplete} celebration={celebration} onDismissCelebrate={() => setCelebration(null)} />}
+      {view === 'verify' && <CameraVerification task={verificationTask?.task || { action: 'Complete your task', icon: '🌱' }} onCheck={handleVerificationCheck} onVerified={handleVerified} onCancel={() => { setVerificationTask(null); setView('home'); }} />}
+      {view === 'home' && <Home guest={auth.guest} ecolingName={ecolingName} ecolingMessage={aiEcolingMessage} weather={auth.guest ? guestWeather : quest?.weather} guestSuggestion={guestSuggestion} guestDifficulty={guestDifficulty} guestPoints={guestPoints} quest={quest} areas={areas} areaName={areaName} onAreaChange={chooseArea} done={done} emotion={emotion} streak={state.streak} totalPoints={state.totalPoints} busy={busy} error={error} onComplete={handleComplete} celebration={celebration} onDismissCelebrate={() => setCelebration(null)} />}
       {view === 'today' && <Stats state={state} serverBacked={!auth.guest} />}
-      {view === 'sprout' && <Sprout ecolingName={ecolingName} mood={mood} streak={state.streak} done={done} />}
+      {view === 'sprout' && <Sprout ecolingName={ecolingName} ecolingMessage={aiEcolingMessage} mood={mood} streak={state.streak} done={done} />}
       {view === 'history' && <History state={state} />}
       {view === 'profile' && <Profile state={state} auth={auth} onNav={setView} badgeCount={badges.filter((badge) => badge.earned).length} prefs={prefs} onReset={handleReset} />}
       {view === 'badges' && <Badges state={state} badges={auth.guest ? null : badges} />}

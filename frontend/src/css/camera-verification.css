@@ -7,6 +7,7 @@
 .camera-task-label { color: var(--forest); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
 .camera-card h2 { color: var(--deep-forest); font-size: 18px; line-height: 1.35; margin: 4px 0 10px; }
 .camera-instruction { color: var(--muted); font-size: 13px; line-height: 1.45; margin-bottom: 16px; }
+.camera-privacy { margin: -8px 0 14px; color: #64736a; font-size: 11px; line-height: 1.45; }
 .camera-frame { position: relative; overflow: hidden; aspect-ratio: 4 / 3; background: #17221b; border-radius: 16px; }
 .camera-frame video, .camera-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .camera-frame-guide { position: absolute; inset: 12%; border: 2px solid rgba(255, 255, 255, .78); border-radius: 12px; box-shadow: 0 0 0 999px rgba(12, 28, 16, .16); }
@@ -17,6 +18,8 @@
 .camera-actions { display: grid; grid-template-columns: 1fr 1.35fr; gap: 10px; margin-top: 14px; }
 .camera-actions .ghost-btn, .camera-actions .action-btn { margin-top: 0; }
 .camera-capture { margin-top: 14px; }
+.camera-manual-confirm { margin-top: 10px; }
+.camera-manual-option { display: block; margin: 12px auto 0; font-size: 12px; }
 .camera-page > .chicken-block { margin: 0 0 4px; }
 .camera-page > .chicken-block .speech-bubble { margin-bottom: 2px; }
 .camera-page > .chicken-block .chicken-image { width: 132px; }

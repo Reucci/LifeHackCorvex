@@ -1,12 +1,14 @@
 import Chicken from '../components/Chicken';
+import { careEcolingMessage } from '../utils/ecolingMessages';
 
-export default function Sprout({ ecolingName, mood, streak, done }) {
+export default function Sprout({ ecolingName, ecolingMessage, mood, streak, done }) {
   const emotion = mood?.emotion || 'normal';
   const currentMood = mood || { label: 'Doing okay', pct: 50 };
   const name = ecolingName || 'Your Ecoling';
+  const bubble = ecolingMessage || careEcolingMessage({ name, emotion, streak });
   return (
     <div className="content">
-        <Chicken emotion={emotion} bubble={`Thank you for taking care of me! Love, ${name} ❤️`} celebrate />
+        <Chicken emotion={emotion} bubble={bubble} celebrate={emotion === 'happy' || emotion === 'excited'} />
 
         <div className="card">
           <div className="mood-line">

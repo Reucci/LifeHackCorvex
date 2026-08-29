@@ -13,6 +13,16 @@ services:
         value: 3.13.7
       - key: ECOLINGS_DATABASE_URL
         sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.4-mini
+      - key: OPENAI_DYNAMIC_QUESTS
+        value: true
+      - key: OPENAI_DIALOGUE
+        value: true
+      - key: OPENAI_DAILY_BUDGET_USD
+        value: 2.00
       - key: ECOLINGS_FRONTEND_ORIGINS
         value: https://ecolings.onrender.com,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173
 

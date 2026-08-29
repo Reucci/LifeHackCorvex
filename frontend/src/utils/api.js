@@ -51,6 +51,18 @@ export const completeQuest = (questId, questKey) => apiRequest('/actions/complet
   body: JSON.stringify({ quest_id: questId, quest_key: questKey }),
 });
 
+export const verifyQuestEvidence = (questId, questKey, imageDataUrl) => apiRequest('/quests/verify', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ quest_id: questId, quest_key: questKey, image_data_url: imageDataUrl }),
+});
+
+export const getEcolingMessage = ({ name, mood, streak, context }) => apiRequest('/ecoling/message', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name, mood, streak, context }),
+});
+
 export const savePreferences = (preferences) => apiRequest('/users/me/preferences', {
   method: 'PUT',
   headers: { 'Content-Type': 'application/json' },

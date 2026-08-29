@@ -25,7 +25,7 @@ function inspectPhoto(canvas) {
   };
 }
 
-export default function CameraVerification({ task, onVerified, onCancel }) {
+export default function CameraVerification({ task, onCheck, onVerified, onCancel }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -33,6 +33,7 @@ export default function CameraVerification({ task, onVerified, onCancel }) {
   const [photo, setPhoto] = useState(null);
   const [checking, setChecking] = useState(false);
   const [checkMessage, setCheckMessage] = useState('');
+  const [manualConfirmation, setManualConfirmation] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -67,8 +68,9 @@ export default function CameraVerification({ task, onVerified, onCancel }) {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas || video.readyState < 2) return;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    const scale = Math.min(1, 1024 / video.videoWidth);
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
     const result = inspectPhoto(canvas);
     setPhoto(canvas.toDataURL('image/jpeg', 0.88));
@@ -77,10 +79,22 @@ export default function CameraVerification({ task, onVerified, onCancel }) {
 
   const confirmPhoto = async () => {
     setChecking(true);
-    setCheckMessage('Checking your evidence...');
-    await new Promise((resolve) => setTimeout(resolve, 650));
-    setChecking(false);
-    onVerified();
+    setManualConfirmation(false);
+    setCheckMessage('Checking your evidence securely…');
+    try {
+      const result = await onCheck(photo);
+      setCheckMessage(result.reason);
+      if (result.verdict === 'verified' && !result.safety_concern) {
+        await onVerified();
+      } else if (result.verdict === 'uncertain' && !result.safety_concern) {
+        setManualConfirmation(true);
+      }
+    } catch (error) {
+      setCheckMessage(`${error.message} You can confirm manually if you completed the quest.`);
+      setManualConfirmation(true);
+    } finally {
+      setChecking(false);
+    }
   };
 
   return (
@@ -95,6 +109,7 @@ export default function CameraVerification({ task, onVerified, onCancel }) {
         <p className="camera-task-label">Your task</p>
         <h2>{task.action}</h2>
         <p className="camera-instruction">Frame the result in your camera, then take a photo for a quick visual check.</p>
+        <p className="camera-privacy">AI review sends this photo securely to OpenAI with response storage disabled. Choose manual confirmation below if you do not want to upload it.</p>
 
         <div className="camera-frame">
           {photo ? <img src={photo} alt="Captured task evidence" /> : <video ref={videoRef} autoPlay muted playsInline />}
@@ -107,13 +122,30 @@ export default function CameraVerification({ task, onVerified, onCancel }) {
 
         {photo ? (
           <div className="camera-actions">
-            <button className="ghost-btn" onClick={() => { setPhoto(null); setCheckMessage(''); }}>Retake</button>
+            <button className="ghost-btn" onClick={() => { setPhoto(null); setCheckMessage(''); setManualConfirmation(false); }}>Retake</button>
             <button className="action-btn" disabled={checking || checkMessage.includes('too dark')} onClick={confirmPhoto}>
-              {checking ? 'Checking…' : 'Use this photo ✓'}
+              {checking ? 'Checking…' : 'Verify photo ✓'}
             </button>
           </div>
         ) : (
           <button className="action-btn camera-capture" disabled={Boolean(cameraError)} onClick={takePhoto}>Take photo</button>
+        )}
+        {manualConfirmation && (
+          <button className="ghost-btn camera-manual-confirm" type="button" onClick={onVerified}>
+            I confirm I completed this quest
+          </button>
+        )}
+        {photo && !manualConfirmation && !checking && (
+          <button
+            className="link-btn camera-manual-option"
+            type="button"
+            onClick={() => {
+              setCheckMessage('Your photo was not uploaded. Confirm completion honestly below.');
+              setManualConfirmation(true);
+            }}
+          >
+            Review manually instead — do not upload
+          </button>
         )}
       </section>
       <Chicken

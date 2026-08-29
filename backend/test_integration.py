@@ -1,3 +1,4 @@
+import base64
 import os
 import tempfile
 import unittest
@@ -6,6 +7,7 @@ from datetime import datetime
 database_file = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
 database_file.close()
 os.environ["ECOLINGS_DATABASE_URL"] = "sqlite:///" + database_file.name.replace("\\", "/")
+os.environ["OPENAI_API_KEY"] = ""
 
 from fastapi.testclient import TestClient
 
@@ -32,8 +34,10 @@ class IntegratedAccountApiTest(unittest.TestCase):
 
         preferences = {
             "display_name": "Green Tester",
+            "ecoling_name": "Sprig",
             "reminders": True,
             "reminder_time": "08:30",
+            "quiet_hours": True,
             "sound": False,
             "units": "metric",
         }
@@ -63,6 +67,16 @@ class IntegratedAccountApiTest(unittest.TestCase):
         slot = db.query(models.QuestSlot).first()
         quest_id = slot.id
         db.close()
+
+        image_data_url = "data:image/jpeg;base64," + base64.b64encode(b"test-image" * 150).decode()
+        verification = client.post("/quests/verify", headers=headers, json={
+            "quest_id": quest_id,
+            "quest_key": "unplug-idle-devices",
+            "image_data_url": image_data_url,
+        })
+        self.assertEqual(verification.status_code, 200, verification.text)
+        self.assertIn(verification.json()["verdict"], {"verified", "uncertain", "rejected"})
+        self.assertIn("available", verification.json())
 
         completed = client.post("/actions/complete", headers=headers, json={
             "quest_id": quest_id,

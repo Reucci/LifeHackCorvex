@@ -12,6 +12,7 @@
 .quest-difficulty { border-radius: 999px; padding: 3px 8px; font-size: 11px; text-transform: capitalize; background: #edf3ed; }
 .quest-difficulty--hard { background: #ffe6dc; color: #a33a20; }
 .quest-difficulty--medium { background: #fff1c9; color: #785b00; }
+.quest-ai-label { margin-top: 5px; color: #55705d; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .quest-window { margin: 10px 0; padding: 8px 10px; border-radius: 10px; background: #eef8ee; font-size: 12px; }
 .slot-note { margin-top: 10px; color: #718078; font-size: 12px; text-align: center; }
 .area-card { margin-bottom: 12px; }

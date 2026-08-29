@@ -34,3 +34,48 @@ For local frontend development against the public backend, copy
 `frontend/.env.example` to `frontend/.env.local` before running `npm start`.
 The deployed API accepts requests from the production site and local React
 development servers on ports 3000 and 5173.
+
+## Optional OpenAI features
+
+EcoLings uses the OpenAI Responses API only from the FastAPI backend. When no
+`OPENAI_API_KEY` is configured, deterministic weather quests, local dialogue,
+and manual photo confirmation continue to work.
+
+To enable AI-generated weather quest variants, personalized Ecoling dialogue,
+and moderated photo verification:
+
+1. Copy `backend/.env.example` to `backend/.env` for local development.
+2. Set `OPENAI_API_KEY` in that untracked file. Never put the key in React.
+3. On Render, set the secret `OPENAI_API_KEY` environment variable on the API
+   service. The Blueprint already declares the remaining safe defaults.
+4. Keep an authoritative project budget in the OpenAI dashboard. The
+   `OPENAI_DAILY_BUDGET_USD` setting is an additional in-process guard and
+   resets if the service restarts.
+
+Authenticated users can inspect feature availability and today's estimated
+in-process spend at `GET /ai/status`.
+
+### Bulk quest library generation
+
+Prepare 500 discounted Batch API requests without spending anything:
+
+```powershell
+cd backend
+venv\Scripts\python.exe scripts\openai_quest_batch.py prepare --requests 500
+```
+
+Review `artifacts/openai/weather-quest-batch.jsonl`, then explicitly submit it:
+
+```powershell
+venv\Scripts\python.exe scripts\openai_quest_batch.py submit --confirm-spend
+```
+
+Use the returned batch ID with the `status` and `download` commands. Screen the
+downloaded candidates before human review:
+
+```powershell
+venv\Scripts\python.exe scripts\review_openai_quests.py
+```
+
+Generated artifacts are ignored by Git. No generated quest is automatically
+promoted into the permanent deterministic catalogue.

@@ -15,6 +15,10 @@ from sqlalchemy.orm import Session
 
 from database import engine, SessionLocal, Base
 import models
+from openai_service import (
+    OpenAIUnavailable, generate_ecoling_dialogue, generate_weather_quests,
+    usage_status, validate_image_data_url, verify_quest_photo,
+)
 from rules import choose_quests
 from weather_service import get_forecast_areas, get_weather, WeatherUnavailableError
 
@@ -80,6 +84,19 @@ class AuthResponse(BaseModel):
 class CompleteQuestRequest(BaseModel):
     quest_id: int
     quest_key: str
+
+
+class VerifyQuestRequest(BaseModel):
+    quest_id: int
+    quest_key: str
+    image_data_url: str = Field(max_length=7_000_000)
+
+
+class EcolingDialogueRequest(BaseModel):
+    name: str = Field(default="Ecoling", max_length=24)
+    mood: str = Field(pattern=r"^(excited|happy|normal|sad)$")
+    streak: int = Field(default=0, ge=0, le=10000)
+    context: str = Field(default="home", pattern=r"^(home|care|quest-complete)$")
 
 
 class Preferences(BaseModel):
@@ -197,6 +214,11 @@ def get_current_user(
 @app.get("/")
 def home():
     return {"message": "Backend works!"}
+
+
+@app.get("/ai/status")
+async def ai_status(user: models.User = Depends(get_current_user)):
+    return await usage_status()
 
 
 @app.post("/auth/register", response_model=AuthResponse, status_code=201)
@@ -546,12 +568,35 @@ async def current_quest(
     except WeatherUnavailableError as error:
         raise HTTPException(status_code=503, detail=str(error))
 
+    recent_slots = db.query(models.QuestSlot).filter(
+        models.QuestSlot.user_id == user.id,
+        models.QuestSlot.slot_start < slot_start,
+    ).order_by(models.QuestSlot.slot_start.desc()).limit(3).all()
+    recent_quest_ids = [
+        option.get("id")
+        for recent_slot in recent_slots
+        for option in (recent_slot.quest_options or [])
+        if option.get("id")
+    ]
     quest_options = choose_quests(
         weather,
         count=2,
         seed=f"{user.id}:{slot_start.isoformat()}",
         now=datetime.now(SINGAPORE_TIME),
+        recent_ids=recent_quest_ids,
     )
+    try:
+        generated_options = await generate_weather_quests(
+            weather,
+            recent_ids=recent_quest_ids,
+            now=datetime.now(SINGAPORE_TIME),
+            count=3,
+        )
+        if generated_options:
+            quest_options = [quest_options[0], generated_options[0]]
+    except OpenAIUnavailable:
+        # Deterministic weather rules are the production-safe fallback.
+        pass
     if existing:
         quest_slot = existing
         quest_slot.quest_options = quest_options
@@ -576,6 +621,55 @@ async def current_quest(
         "slot_start": slot_start.isoformat(),
         "slot_end": slot_end.isoformat(),
     }
+
+
+@app.post("/quests/verify")
+async def verify_quest_evidence(
+    request: VerifyQuestRequest,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    quest_slot = db.query(models.QuestSlot).filter(
+        models.QuestSlot.id == request.quest_id,
+        models.QuestSlot.user_id == user.id,
+    ).first()
+    if quest_slot is None:
+        raise HTTPException(status_code=404, detail="Quest slot not found")
+    quest = next(
+        (option for option in (quest_slot.quest_options or []) if option.get("id") == request.quest_key),
+        None,
+    )
+    if quest is None:
+        raise HTTPException(status_code=400, detail="That quest was not offered in this slot")
+    try:
+        validate_image_data_url(request.image_data_url)
+        result = await verify_quest_photo(quest, request.image_data_url)
+        return {"available": True, **result}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    except OpenAIUnavailable as error:
+        return {
+            "available": False,
+            "verdict": "uncertain",
+            "confidence": 0,
+            "reason": str(error) + ". Please confirm your completion manually.",
+            "visible_evidence": "",
+            "safety_concern": False,
+        }
+
+
+@app.post("/ecoling/message")
+async def ecoling_message(
+    request: EcolingDialogueRequest,
+    user: models.User = Depends(get_current_user),
+):
+    try:
+        message = await generate_ecoling_dialogue(
+            request.name, request.mood, request.streak, request.context
+        )
+        return {"available": True, "message": message}
+    except OpenAIUnavailable:
+        return {"available": False, "message": None}
 
 
 @app.post("/actions/complete")

@@ -1,12 +1,6 @@
 import Chicken from '../components/Chicken';
+import { homeEcolingMessage } from '../utils/ecolingMessages';
 import '../css/home.css';
-
-function greeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning!';
-  if (hour < 18) return 'Good afternoon!';
-  return 'Good evening!';
-}
 
 function StreakLeaves({ streak }) {
   return <div className="streak-leaves">{Array.from({ length: 7 }, (_, index) => <span key={index} className={index < Math.min(streak, 7) ? 'leaf-on' : 'leaf-off'}>🍃</span>)}</div>;
@@ -31,7 +25,11 @@ function LiveQuestCard({ quest, weather, busy, onComplete }) {
           const selected = quest.selected_quest_key === option.id;
           return (
             <article className={`quest-choice${selected ? ' quest-choice--selected' : ''}`} key={option.id}>
-              <div className="quest-choice-head"><strong>{option.title}</strong><span className={`quest-difficulty quest-difficulty--${option.difficulty}`}>{option.difficulty}</span></div>
+              <div className="quest-choice-head">
+                <strong>{option.title}</strong>
+                <span className={`quest-difficulty quest-difficulty--${option.difficulty}`}>{option.difficulty}</span>
+              </div>
+              {option.source === 'openai' && <div className="quest-ai-label">✨ AI weather variant</div>}
               <p>{option.description}</p>
               <small>{option.reason}</small>
               {option.action_window && <div className="quest-window"><strong>Best time:</strong> {option.action_window.label}</div>}
@@ -48,13 +46,14 @@ function LiveQuestCard({ quest, weather, busy, onComplete }) {
 }
 
 export default function Home({
-  guest, ecolingName, weather, guestSuggestion, guestDifficulty, guestPoints, quest, areas, areaName,
+  guest, ecolingName, ecolingMessage, weather, guestSuggestion, guestDifficulty, guestPoints, quest, areas, areaName,
   onAreaChange, done, emotion, streak, totalPoints, busy, error, onComplete, celebration,
   onDismissCelebrate,
 }) {
+  const bubble = ecolingMessage || homeEcolingMessage({ name: ecolingName, done, emotion, streak, questId: quest?.quest_id });
   return (
     <div className="content">
-      <Chicken emotion={emotion} bubble={done ? `Great job! ${ecolingName || 'Your Ecoling'} is happy! 🍃` : `${greeting()} ${ecolingName ? `${ecolingName} is ready to help` : "Let's help"} the planet 🌱`} celebrate={done} />
+      <Chicken emotion={emotion} bubble={bubble} celebrate={done} />
       {celebration ? (
         <div className="card celebrate-card">
           <div className="celebrate-label">You earned</div>

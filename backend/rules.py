@@ -110,6 +110,78 @@ QUESTS = [
         "bonuses": {"raining": 4, "rain_expected": 2},
     },
     {
+        "id": "breezy-cross-ventilation",
+        "title": "Let the breeze ventilate your room",
+        "description": "Open safe, screened windows for 20 minutes and switch off a fan or AC while fresh air moves through.",
+        "category": "cooling",
+        "base_points": 14,
+        "requires": {"breezy": True, "raining": False, "rain_expected": False, "comfortable_for_fan": True},
+        "bonuses": {"daylight": 2},
+    },
+    {
+        "id": "breezy-air-dry-dishes",
+        "title": "Air-dry dishes in the breeze",
+        "description": "Skip the heated drying cycle and let today's airflow dry a rack of dishes naturally.",
+        "category": "appliances",
+        "base_points": 10,
+        "requires": {"breezy": True, "rain_expected": False},
+        "bonuses": {"daylight": 2},
+    },
+    {
+        "id": "pre-rain-close-windows",
+        "title": "Close exposed windows before rain arrives",
+        "description": "Keep wind-driven rain and humid air out so you do not need extra fan or AC drying later.",
+        "category": "rain-prep",
+        "base_points": 15,
+        "requires": {"radar_rain_approaching": True},
+        "bonuses": {"radar_high_confidence": 3},
+    },
+    {
+        "id": "rain-delay-laundry",
+        "title": "Wait for a dry slot before washing clothes",
+        "description": "Postpone a non-urgent load so it can be line-dried instead of needing the tumble dryer indoors.",
+        "category": "laundry",
+        "base_points": 12,
+        "requires": {"rain_context": True},
+        "bonuses": {"raining": 3, "radar_rain_approaching": 2},
+    },
+    {
+        "id": "humid-ac-dry-mode",
+        "title": "Try AC dry mode instead of colder air",
+        "description": "If your unit has dry mode, use it briefly rather than lowering the temperature to fight humidity.",
+        "category": "cooling",
+        "base_points": 13,
+        "requires": {"very_humid": True, "feels_hot": True},
+        "bonuses": {"raining": 2},
+    },
+    {
+        "id": "hot-no-cook-meal",
+        "title": "Choose one low-heat meal",
+        "description": "Avoid the oven during this hot period with a cold meal, leftovers, or another low-heat option.",
+        "category": "cooking",
+        "base_points": 12,
+        "requires": {"daylight": True, "hot": True},
+        "bonuses": {"very_hot": 3},
+    },
+    {
+        "id": "hot-fridge-one-trip",
+        "title": "Plan one quick fridge trip",
+        "description": "Choose everything you need before opening the fridge so it loses less cold air in today's heat.",
+        "category": "appliances",
+        "base_points": 9,
+        "requires": {"hot": True},
+        "bonuses": {"very_hot": 3},
+    },
+    {
+        "id": "humid-night-ac-timer",
+        "title": "Set a sleep timer for cooling",
+        "description": "Use an AC or fan timer tonight so cooling does not run longer than you need after falling asleep.",
+        "category": "cooling",
+        "base_points": 14,
+        "requires": {"daylight": False, "feels_hot": True},
+        "bonuses": {"very_humid": 3},
+    },
+    {
         "id": "unplug-idle-devices",
         "title": "Unplug three idle devices",
         "description": "Disconnect chargers or electronics that are not being used.",
@@ -167,21 +239,24 @@ def build_features(weather, now=None):
     return features, round(apparent_temperature, 1)
 
 
-def choose_quests(weather, count=2, seed=None, now=None):
+def choose_quests(weather, count=2, seed=None, now=None, recent_ids=None):
     """Return distinct, weighted-random choices from the best eligible quests."""
     features, apparent_temperature = build_features(weather, now)
     candidates = []
+    recent_ids = set(recent_ids or [])
 
     for quest in QUESTS:
         if any(features.get(name) is not expected for name, expected in quest["requires"].items()):
             continue
         score = quest["base_points"]
         score += sum(points for name, points in quest["bonuses"].items() if features.get(name))
+        if quest["id"] in recent_ids:
+            score -= 8
         candidates.append((score, quest))
 
-    # Keep randomization relevant: sample from the five strongest eligible
-    # candidates, with stronger weather matches more likely to be offered.
-    pool = sorted(candidates, key=lambda item: item[0], reverse=True)[:5]
+    # Keep randomization relevant while leaving enough room for variety. Recently
+    # offered quests receive a penalty but remain available when few tasks fit.
+    pool = sorted(candidates, key=lambda item: item[0], reverse=True)[:8]
     rng = random.Random(seed)
     selected_options = []
     urgent = next((item for item in pool if item[1].get("urgent")), None)
