@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Header from './components/Header';
 import Navigation from './components/Navigation';
 import Menu from './components/Menu';
@@ -11,17 +11,16 @@ import Profile from './pages/Profile';
 import Badges from './pages/Badges';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
-import { MOCK_WEATHER, pickSuggestion, difficultyFor } from './utils/weather';
+import { MOCK_WEATHER, getWeather, pickSuggestion, difficultyFor } from './utils/weather';
 import { loadState, completeToday, isDoneToday, petEmotion } from './utils/store';
 import { loadAuth, clearAuth, logout as apiLogout } from './utils/auth';
 import './css/App.css';
 
 const BASE_POINTS = 25;
 
-// Frontend mock — replace with real weather later.
-const weather = MOCK_WEATHER;
-const suggestion = pickSuggestion(weather);
-const difficulty = difficultyFor(weather);
+const SKY_CLASSES = ['sunny', 'partly', 'overcast', 'rainy'];
+
+const skyImage = (sky) => `${process.env.PUBLIC_URL}/images/weather-${sky}.png`;
 
 const HEADER = {
   home: {},
@@ -40,6 +39,17 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
+  const [weather, setWeather] = useState(MOCK_WEATHER);
+
+  useEffect(() => {
+    let alive = true;
+    getWeather().then((w) => { if (alive) setWeather(w); });
+    return () => { alive = false; };
+  }, []);
+
+  const suggestion = pickSuggestion(weather);
+  const difficulty = difficultyFor(weather);
+  const sky = SKY_CLASSES.includes(weather.sky) ? weather.sky : 'partly';
 
   const showToast = useCallback((msg) => {
     setToast(msg);
@@ -85,7 +95,10 @@ export default function App() {
   const headerCfg = HEADER[view] || {};
 
   return (
-    <div className="app-container">
+    <div
+      className={`app-container weather-bg weather-bg--${sky}`}
+      style={{ backgroundImage: `url("${skyImage(sky)}")` }}
+    >
       <Header
         title={headerCfg.title}
         action={headerCfg.action}
