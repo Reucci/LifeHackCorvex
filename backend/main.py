@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import os
 import secrets
 from datetime import date, datetime, timedelta, timezone
 
@@ -16,14 +17,22 @@ from rules import choose_quests
 from weather_service import get_forecast_areas, get_weather, WeatherUnavailableError
 
 app = FastAPI()
+
+DEFAULT_CORS_ORIGINS = (
+    "http://localhost:5173,"
+    "http://127.0.0.1:5173,"
+    "http://localhost:3000,"
+    "http://127.0.0.1:3000"
+)
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv("ECOLINGS_FRONTEND_ORIGINS", DEFAULT_CORS_ORIGINS).split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
