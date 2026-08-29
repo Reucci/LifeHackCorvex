@@ -1,7 +1,7 @@
 import hashlib
 import hmac
 import secrets
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 
 from database import engine, SessionLocal, Base
 import models
+from rules import choose_quests
+from weather_service import get_forecast_areas, get_weather, WeatherUnavailableError
 
 app = FastAPI()
 app.add_middleware(
@@ -34,6 +36,7 @@ if "password_hash" not in {column["name"] for column in inspect(engine).get_colu
 
 PASSWORD_ITERATIONS = 600_000
 SESSION_LIFETIME = timedelta(days=7)
+SINGAPORE_TIME = timezone(timedelta(hours=8))
 
 
 class Credentials(BaseModel):
@@ -56,6 +59,11 @@ class UserResponse(BaseModel):
 class AuthResponse(BaseModel):
     token: str
     user: UserResponse
+
+
+class CompleteQuestRequest(BaseModel):
+    quest_id: int
+    quest_key: str
 
 
 def get_db():
@@ -127,7 +135,7 @@ def get_current_user(
 
 @app.get("/")
 def home():
-    return {"message": "Sprout backend is working!"}
+    return {"message": "Backend works!"}
 
 
 @app.post("/auth/register", response_model=AuthResponse, status_code=201)
@@ -171,27 +179,146 @@ def get_me(user: models.User = Depends(get_current_user)):
     return user
 
 
-@app.post("/actions/complete")
-def complete_action(
+@app.get("/weather/current")
+async def current_weather(
+    latitude: float,
+    longitude: float,
+    user: models.User = Depends(get_current_user),
+):
+    try:
+        return await get_weather(latitude, longitude)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    except WeatherUnavailableError as error:
+        raise HTTPException(status_code=503, detail=str(error))
+
+
+@app.get("/weather/areas")
+async def weather_areas(user: models.User = Depends(get_current_user)):
+    try:
+        return {"areas": await get_forecast_areas()}
+    except WeatherUnavailableError as error:
+        raise HTTPException(status_code=503, detail=str(error))
+
+
+def current_quest_slot():
+    now = datetime.now(SINGAPORE_TIME)
+    start = now.replace(hour=now.hour - now.hour % 2, minute=0, second=0, microsecond=0)
+    return start, start + timedelta(hours=2)
+
+
+@app.get("/quests/current")
+@app.get("/quests/today", include_in_schema=False)
+async def current_quest(
+    latitude: float,
+    longitude: float,
     user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    today = date.today()
-    if user.last_completed_date == today:
+    slot_start, slot_end = current_quest_slot()
+    database_slot_start = slot_start.replace(tzinfo=None)
+    existing = db.query(models.QuestSlot).filter(
+        models.QuestSlot.user_id == user.id,
+        models.QuestSlot.slot_start == database_slot_start,
+    ).first()
+    stored_location = (existing.weather_snapshot or {}).get("location", {}) if existing else {}
+    same_location = (
+        abs(stored_location.get("latitude", 0) - latitude) < 0.00001
+        and abs(stored_location.get("longitude", 0) - longitude) < 0.00001
+    )
+    if existing and (existing.completed or same_location):
         return {
-            "message": "Today's action was already completed",
-            "gold_earned": 0,
-            "user": UserResponse.model_validate(user),
+            "quest_id": existing.id,
+            "options": existing.quest_options,
+            "weather": existing.weather_snapshot,
+            "completed": existing.completed,
+            "selected_quest_key": existing.selected_quest_key,
+            "slot_start": slot_start.isoformat(),
+            "slot_end": slot_end.isoformat(),
         }
 
-    yesterday = today - timedelta(days=1)
-    user.daily_streak = (
-        user.daily_streak + 1 if user.last_completed_date == yesterday else 1
+    try:
+        weather = await get_weather(latitude, longitude)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    except WeatherUnavailableError as error:
+        raise HTTPException(status_code=503, detail=str(error))
+
+    quest_options = choose_quests(
+        weather,
+        count=2,
+        seed=f"{user.id}:{slot_start.isoformat()}",
+        now=slot_start,
     )
-    gold_earned = 10
+    if existing:
+        quest_slot = existing
+        quest_slot.quest_options = quest_options
+        quest_slot.weather_snapshot = weather
+    else:
+        quest_slot = models.QuestSlot(
+            user_id=user.id,
+            slot_start=database_slot_start,
+            slot_end=slot_end.replace(tzinfo=None),
+            quest_options=quest_options,
+            weather_snapshot=weather,
+        )
+        db.add(quest_slot)
+    db.commit()
+    db.refresh(quest_slot)
+    return {
+        "quest_id": quest_slot.id,
+        "options": quest_options,
+        "weather": weather,
+        "completed": False,
+        "selected_quest_key": None,
+        "slot_start": slot_start.isoformat(),
+        "slot_end": slot_end.isoformat(),
+    }
+
+
+@app.post("/actions/complete")
+def complete_action(
+    completion: CompleteQuestRequest,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    slot_start, _ = current_quest_slot()
+    quest_slot = db.query(models.QuestSlot).filter(
+        models.QuestSlot.id == completion.quest_id,
+        models.QuestSlot.user_id == user.id,
+        models.QuestSlot.slot_start == slot_start.replace(tzinfo=None),
+    ).first()
+    if quest_slot is None:
+        raise HTTPException(status_code=404, detail="The current quest slot was not found")
+
+    if quest_slot.completed:
+        return {
+            "message": "This two-hour quest was already completed",
+            "gold_earned": 0,
+            "user": UserResponse.model_validate(user),
+            "completed": True,
+        }
+
+    selected_quest = next(
+        (quest for quest in quest_slot.quest_options if quest["id"] == completion.quest_key),
+        None,
+    )
+    if selected_quest is None:
+        raise HTTPException(status_code=400, detail="Select one of the offered quests")
+
+    today = datetime.now(SINGAPORE_TIME).date()
+    yesterday = today - timedelta(days=1)
+    if user.last_completed_date != today:
+        user.daily_streak = (
+            user.daily_streak + 1 if user.last_completed_date == yesterday else 1
+        )
+    gold_earned = int(selected_quest["points"])
     user.gold += gold_earned
     user.ecoling_state = "thriving"
     user.last_completed_date = today
+    quest_slot.completed = True
+    quest_slot.selected_quest_key = selected_quest["id"]
+    quest_slot.completed_at = datetime.utcnow()
     db.commit()
     db.refresh(user)
 
@@ -199,4 +326,6 @@ def complete_action(
         "message": "Action completed!",
         "gold_earned": gold_earned,
         "user": UserResponse.model_validate(user),
+        "completed": True,
+        "selected_quest_key": selected_quest["id"],
     }

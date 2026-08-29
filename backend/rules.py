@@ -1,216 +1,176 @@
-"""Converts a weather reading into "quests": electricity-saving suggestions."""
+# Select one safe, weather-relevant energy quest for Singapore
 
-import re
-
-CONDITIONS = {"clear", "clouds", "rain", "snow", "wind", "fog", "storm"}
-
-PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
+from datetime import datetime, timedelta, timezone
+import random
 
 
-def to_celsius(temp, unit):
-    if unit == "F":
-        return (temp - 32) * 5 / 9
-    return temp  # already Celsius
+RAIN_TERMS = ("rain", "shower", "thunder")
+SUN_TERMS = ("fair", "sunny", "clear")
+SINGAPORE_TIME = timezone(timedelta(hours=8))
+
+QUESTS = [
+    {
+        "id": "line-dry-clothes",
+        "title": "Line-dry one load of laundry",
+        "description": "Use today's dry conditions instead of running the dryer.",
+        "category": "laundry",
+        "base_points": 18,
+        "requires": {"daylight": True, "raining": False, "rain_expected": False},
+        "bonuses": {"breezy": 5, "sunny": 3},
+    },
+    {
+        "id": "close-sun-facing-blinds",
+        "title": "Close sun-facing blinds",
+        "description": "Block afternoon heat before it enters your room and reduce AC demand.",
+        "category": "cooling",
+        "base_points": 14,
+        "requires": {"daylight": True, "hot": True},
+        "bonuses": {"sunny": 4, "very_hot": 4},
+    },
+    {
+        "id": "fan-first",
+        "title": "Try a fan before switching on the AC",
+        "description": "Run a fan for 20 minutes first and only use AC if you still need it.",
+        "category": "cooling",
+        "base_points": 12,
+        "requires": {"raining": False, "comfortable_for_fan": True},
+        "bonuses": {"breezy": 3},
+    },
+    {
+        "id": "efficient-ac-setting",
+        "title": "Keep the AC at 25°C or warmer",
+        "description": "Use an efficient setting and keep doors and windows closed while cooling.",
+        "category": "cooling",
+        "base_points": 16,
+        "requires": {"feels_hot": True},
+        "bonuses": {"very_hot": 4, "very_humid": 3},
+    },
+    {
+        "id": "natural-daylight",
+        "title": "Use daylight instead of room lights",
+        "description": "Work near a window and switch off unnecessary lights for one hour.",
+        "category": "lighting",
+        "base_points": 9,
+        "requires": {"daylight": True},
+        "bonuses": {"sunny": 4},
+    },
+    {
+        "id": "delay-heavy-appliances",
+        "title": "Delay one heat-producing appliance",
+        "description": "Avoid the oven or dryer during the hottest part of the day.",
+        "category": "appliances",
+        "base_points": 12,
+        "requires": {"daylight": True, "hot": True},
+        "bonuses": {"very_hot": 4},
+    },
+    {
+        "id": "rainy-day-standby",
+        "title": "Switch off idle devices at the socket",
+        "description": "Use this indoor rainy-day quest to cut standby electricity use.",
+        "category": "appliances",
+        "base_points": 10,
+        "requires": {"rain_context": True},
+        "bonuses": {"raining": 4, "rain_expected": 2},
+    },
+    {
+        "id": "unplug-idle-devices",
+        "title": "Unplug three idle devices",
+        "description": "Disconnect chargers or electronics that are not being used.",
+        "category": "appliances",
+        "base_points": 8,
+        "requires": {},
+        "bonuses": {},
+    },
+]
 
 
-def normalize_condition(condition):
-    c = str(condition or "").lower().strip()
-    if c in CONDITIONS:
-        return c
-    if re.search(r"(sun|clear)", c):
-        return "clear"
-    if re.search(r"(cloud|overcast)", c):
-        return "clouds"
-    if re.search(r"(rain|drizzle|shower)", c):
-        return "rain"
-    if re.search(r"(snow|sleet|blizzard)", c):
-        return "snow"
-    if re.search(r"(wind|breez|gale)", c):
-        return "wind"
-    if re.search(r"(fog|mist|haze)", c):
-        return "fog"
-    if re.search(r"(storm|thunder)", c):
-        return "storm"
-    return "unknown"
+def _value(weather, name):
+    observation = weather["observations"].get(name)
+    return observation["value"] if observation else None
 
 
-def _quest(id_, title, description, category, priority):
-    return {
-        "id": id_,
-        "title": title,
-        "description": description,
-        "category": category,
-        "priority": priority,
+def build_features(weather, now=None):
+    now = now or datetime.now(SINGAPORE_TIME)
+    temperature = float(_value(weather, "temperature"))
+    humidity = _value(weather, "humidity")
+    humidity = float(humidity) if humidity is not None else None
+    rainfall = _value(weather, "rainfall")
+    rainfall = float(rainfall) if rainfall is not None else 0
+    wind_speed = _value(weather, "wind_speed")
+    wind_speed = float(wind_speed) if wind_speed is not None else 0
+    condition = (weather.get("forecast") or {}).get("condition", "").lower()
+
+    apparent_temperature = temperature
+    if humidity is not None and temperature >= 27:
+        apparent_temperature += max(0, humidity - 60) * 0.04
+
+    raining = rainfall > 0
+    rain_expected = any(term in condition for term in RAIN_TERMS)
+    features = {
+        "daylight": 7 <= now.hour < 19,
+        "hot": temperature >= 30,
+        "very_hot": temperature >= 33,
+        "very_humid": humidity is not None and humidity >= 80,
+        "feels_hot": apparent_temperature >= 31,
+        "comfortable_for_fan": temperature < 31 and apparent_temperature < 33,
+        "raining": raining,
+        "rain_expected": rain_expected,
+        "rain_context": raining or rain_expected,
+        "breezy": wind_speed >= 10,
+        "sunny": any(term in condition for term in SUN_TERMS),
     }
+    return features, round(apparent_temperature, 1)
 
 
-def get_quests(temperature, unit="C", condition=None, humidity=None, wind_speed=None):
-    """
-    :param temperature: number
-    :param unit: "C" or "F"
-    :param condition: free text, e.g. "clear", "rain", "snow", "cloudy", "windy", "storm"
-    :param humidity: percentage 0-100
-    :param wind_speed: km/h
-    """
-    unit = (unit or "C").upper()
+def choose_quests(weather, count=2, seed=None, now=None):
+    """Return distinct, weighted-random choices from the best eligible quests."""
+    features, apparent_temperature = build_features(weather, now)
+    candidates = []
 
-    try:
-        temp_value = float(temperature)
-    except (TypeError, ValueError):
-        raise ValueError("temperature must be a number")
+    for quest in QUESTS:
+        if any(features.get(name) is not expected for name, expected in quest["requires"].items()):
+            continue
+        score = quest["base_points"]
+        score += sum(points for name, points in quest["bonuses"].items() if features.get(name))
+        candidates.append((score, quest))
 
-    temp_c = to_celsius(temp_value, unit)
-    condition_norm = normalize_condition(condition)
-    humidity_value = float(humidity) if humidity is not None else None
-    wind_speed_value = float(wind_speed) if wind_speed is not None else None
+    # Keep randomization relevant: sample from the five strongest eligible
+    # candidates, with stronger weather matches more likely to be offered.
+    pool = sorted(candidates, key=lambda item: item[0], reverse=True)[:5]
+    rng = random.Random(seed)
+    selected_options = []
+    while pool and len(selected_options) < count:
+        minimum = min(score for score, _ in pool)
+        weights = [score - minimum + 2 for score, _ in pool]
+        chosen_index = rng.choices(range(len(pool)), weights=weights, k=1)[0]
+        raw_score, selected = pool.pop(chosen_index)
+        reward = max(4, min(15, round(raw_score * 0.6)))
+        difficulty = "hard" if reward >= 12 else "medium" if reward >= 8 else "easy"
+        selected_options.append({
+            "id": selected["id"],
+            "title": selected["title"],
+            "description": selected["description"],
+            "category": selected["category"],
+            "points": reward,
+            "difficulty": difficulty,
+            "reason": _weather_reason(weather, features, apparent_temperature),
+        })
+    return selected_options
 
-    quests = []
 
-    # --- Temperature band suggestions ---
-    if temp_c < 20:
-        quests.append(_quest(
-            "ac-off-cold",
-            "Turn off the air conditioning",
-            "It's chilly - the AC isn't needed. Turn it off to save power.",
-            "cooling", "high",
-        ))
-        quests.append(_quest(
-            "layer-up",
-            "Layer up instead of heating",
-            "Put on a sweater or blanket before reaching for the heater.",
-            "heating", "medium",
-        ))
-        quests.append(_quest(
-            "seal-drafts",
-            "Close windows and doors",
-            "Keep the cold air out so any heating you do use works efficiently.",
-            "heating", "low",
-        ))
-    elif temp_c < 24:
-        quests.append(_quest(
-            "hvac-off-mild",
-            "Turn off heating and AC",
-            "The temperature is comfortable as-is - no climate control needed.",
-            "hvac", "high",
-        ))
-        quests.append(_quest(
-            "natural-ventilation",
-            "Open a window",
-            "Let in fresh air instead of running the AC or fans.",
-            "cooling", "medium",
-        ))
-    elif temp_c < 28:
-        quests.append(_quest(
-            "fan-over-ac",
-            "Use a fan instead of the AC",
-            "It's warm but not extreme - a fan uses a fraction of the power an AC does.",
-            "cooling", "high",
-        ))
-        quests.append(_quest(
-            "close-blinds",
-            "Close blinds or curtains",
-            "Block direct sunlight to keep the room cooler without more cooling power.",
-            "cooling", "medium",
-        ))
-    else:
-        quests.append(_quest(
-            "ac-efficient-temp",
-            "Set the AC to 24-26°C (75-78°F)",
-            "It's hot - the AC is warranted, but every degree colder adds ~3-5% more energy use.",
-            "cooling", "high",
-        ))
-        quests.append(_quest(
-            "avoid-oven",
-            "Avoid the oven and heat-generating appliances",
-            "Cooking with an oven heats the room, making the AC work harder.",
-            "cooling", "medium",
-        ))
-        quests.append(_quest(
-            "close-blinds-hot",
-            "Close blinds during peak sun",
-            "Reduce solar heat gain so the AC doesn't have to work as hard.",
-            "cooling", "medium",
-        ))
+def choose_quest(weather, now=None):
+    """Compatibility helper for callers that need a single quest."""
+    return choose_quests(weather, count=1, now=now)[0]
 
-    # --- Condition-based suggestions ---
-    if condition_norm == "clear":
-        quests.append(_quest(
-            "natural-light",
-            "Turn off the lights",
-            "It's sunny - rely on natural daylight instead of electric lighting.",
-            "lighting", "medium",
-        ))
-    elif condition_norm in ("clouds", "fog"):
-        quests.append(_quest(
-            "moderate-hvac",
-            "Ease off heating/cooling",
-            "Overcast skies keep temperatures moderate - check if you even need climate control right now.",
-            "hvac", "low",
-        ))
-    elif condition_norm in ("rain", "storm"):
-        if temp_c >= 20 and humidity_value is not None and humidity_value < 70:
-            quests.append(_quest(
-                "rain-cooling",
-                "Let the rain cool things down",
-                "Rain often drops the ambient temperature - try opening a window before switching on the AC.",
-                "cooling", "medium",
-            ))
-        quests.append(_quest(
-            "unplug-electronics-storm",
-            "Unplug sensitive electronics",
-            "Storms can bring power surges - unplugging idle electronics also cuts phantom load.",
-            "safety", "low",
-        ))
-    elif condition_norm == "snow":
-        quests.append(_quest(
-            "insulate-heat",
-            "Insulate instead of over-heating",
-            "Use draft stoppers and rugs to retain heat rather than raising the thermostat.",
-            "heating", "medium",
-        ))
-    elif condition_norm == "wind" or (wind_speed_value is not None and wind_speed_value > 20):
-        quests.append(_quest(
-            "wind-ventilation",
-            "Use the breeze instead of a fan",
-            "Strong wind can ventilate a room on its own - crack a window instead of running a fan.",
-            "cooling", "medium",
-        ))
 
-    # --- Humidity-based suggestions ---
-    if humidity_value is not None:
-        if humidity_value > 70 and temp_c >= 20:
-            quests.append(_quest(
-                "dehumidify-not-cool",
-                "Use a dehumidifier instead of lowering the AC temp",
-                "High humidity makes it feel hotter - dehumidifying is cheaper than over-cooling.",
-                "cooling", "medium",
-            ))
-        elif humidity_value < 30 and temp_c < 15:
-            quests.append(_quest(
-                "humidifier-comfort",
-                "Add a humidifier instead of raising the heat",
-                "Dry air feels colder than it is - humidifying can let you lower the thermostat.",
-                "heating", "low",
-            ))
-
-    # Always-applicable low-priority tip
-    quests.append(_quest(
-        "unplug-idle",
-        "Unplug idle devices",
-        "Chargers and electronics draw phantom power even when off - unplug what you're not using.",
-        "general", "low",
-    ))
-
-    quests.sort(key=lambda q: PRIORITY_RANK[q["priority"]])
-
-    return {
-        "weather": {
-            "temperature": temp_value,
-            "unit": unit,
-            "temperatureCelsius": round(temp_c, 1),
-            "condition": condition_norm,
-            "humidity": humidity_value,
-            "windSpeed": wind_speed_value,
-        },
-        "quests": quests,
-    }
+def _weather_reason(weather, features, apparent_temperature):
+    temperature = _value(weather, "temperature")
+    area = (weather.get("forecast") or {}).get("area", "your area")
+    condition = (weather.get("forecast") or {}).get("condition")
+    if features["raining"]:
+        return f"Rain is being observed near {area}, so an indoor quest is safest."
+    if features["rain_expected"]:
+        return f"The two-hour forecast for {area} is {condition}; this quest stays weather-safe."
+    if features["feels_hot"]:
+        return f"It is {temperature}°C and feels about {apparent_temperature}°C near you."
+    return f"The nearest official station reports {temperature}°C near {area}."
