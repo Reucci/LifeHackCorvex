@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from database import engine, SessionLocal, Base
 import models
+import weather as weather_service
 
 app = FastAPI()
 app.add_middleware(
@@ -19,6 +20,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -27,9 +30,13 @@ app.add_middleware(
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
-if "password_hash" not in {column["name"] for column in inspect(engine).get_columns("users")}:
+_user_columns = {column["name"] for column in inspect(engine).get_columns("users")}
+if "password_hash" not in _user_columns:
     with engine.begin() as connection:
         connection.execute(text("ALTER TABLE users ADD COLUMN password_hash VARCHAR"))
+if "longest_streak" not in _user_columns:
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE users ADD COLUMN longest_streak INTEGER DEFAULT 0"))
 
 
 PASSWORD_ITERATIONS = 600_000
@@ -46,7 +53,7 @@ class UserResponse(BaseModel):
 
     id: int
     username: str
-    gold: int
+    total_points: int
     daily_streak: int
     ecoling_state: str
     last_completed_date: date | None
@@ -56,6 +63,19 @@ class UserResponse(BaseModel):
 class AuthResponse(BaseModel):
     token: str
     user: UserResponse
+
+
+class WeatherSnapshot(BaseModel):
+    icon: str
+    condition: str
+    temp: float
+
+
+class CompleteActionRequest(BaseModel):
+    habit: str
+    points: int
+    difficulty: float
+    weather: WeatherSnapshot
 
 
 def get_db():
@@ -125,9 +145,52 @@ def get_current_user(
     return user
 
 
+def serialize_state(user: models.User, db: Session) -> dict:
+    entries = (
+        db.query(models.ActionLog)
+        .filter(models.ActionLog.user_id == user.id)
+        .order_by(models.ActionLog.date.desc(), models.ActionLog.id.desc())
+        .limit(90)
+        .all()
+    )
+    completed_dates = sorted({
+        entry.date.isoformat()
+        for entry in db.query(models.ActionLog.date).filter(models.ActionLog.user_id == user.id)
+    })
+    return {
+        "totalPoints": user.total_points,
+        "streak": user.daily_streak,
+        "longestStreak": user.longest_streak,
+        "lastCompletedDate": user.last_completed_date,
+        "completedDates": completed_dates,
+        "log": [
+            {
+                "date": entry.date.isoformat(),
+                "habit": entry.habit,
+                "points": entry.points,
+                "difficulty": entry.difficulty,
+                "weather": {
+                    "icon": entry.weather_icon,
+                    "condition": entry.weather_condition,
+                    "temp": entry.weather_temp,
+                },
+            }
+            for entry in entries
+        ],
+    }
+
+
 @app.get("/")
 def home():
     return {"message": "Sprout backend is working!"}
+
+
+@app.get("/weather")
+def get_weather():
+    try:
+        return weather_service.get_weather_snapshot()
+    except Exception:
+        raise HTTPException(status_code=502, detail="Weather service unavailable")
 
 
 @app.post("/auth/register", response_model=AuthResponse, status_code=201)
@@ -171,8 +234,17 @@ def get_me(user: models.User = Depends(get_current_user)):
     return user
 
 
+@app.get("/state")
+def get_state(
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return serialize_state(user, db)
+
+
 @app.post("/actions/complete")
 def complete_action(
+    payload: CompleteActionRequest,
     user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -181,22 +253,32 @@ def complete_action(
         return {
             "message": "Today's action was already completed",
             "gold_earned": 0,
-            "user": UserResponse.model_validate(user),
+            "state": serialize_state(user, db),
         }
 
     yesterday = today - timedelta(days=1)
-    user.daily_streak = (
-        user.daily_streak + 1 if user.last_completed_date == yesterday else 1
-    )
-    gold_earned = 10
-    user.gold += gold_earned
+    streak = user.daily_streak + 1 if user.last_completed_date == yesterday else 1
+    user.daily_streak = streak
+    user.longest_streak = max(user.longest_streak or 0, streak)
+    user.total_points += payload.points
     user.ecoling_state = "thriving"
     user.last_completed_date = today
+
+    db.add(models.ActionLog(
+        user_id=user.id,
+        date=today,
+        habit=payload.habit,
+        points=payload.points,
+        difficulty=payload.difficulty,
+        weather_icon=payload.weather.icon,
+        weather_condition=payload.weather.condition,
+        weather_temp=payload.weather.temp,
+    ))
     db.commit()
     db.refresh(user)
 
     return {
         "message": "Action completed!",
-        "gold_earned": gold_earned,
-        "user": UserResponse.model_validate(user),
+        "gold_earned": payload.points,
+        "state": serialize_state(user, db),
     }

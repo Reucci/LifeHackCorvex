@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Header from './components/Header';
 import Navigation from './components/Navigation';
 import Menu from './components/Menu';
@@ -11,17 +11,22 @@ import Profile from './pages/Profile';
 import Badges from './pages/Badges';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
-import { MOCK_WEATHER, pickSuggestion, difficultyFor } from './utils/weather';
+import { MOCK_WEATHER, getWeather, pickSuggestion, difficultyFor } from './utils/weather';
 import { loadState, completeToday, isDoneToday, petEmotion } from './utils/store';
 import { loadAuth, clearAuth, logout as apiLogout } from './utils/auth';
+import { fetchState, completeAction } from './utils/api';
 import './css/App.css';
 
 const BASE_POINTS = 25;
 
-// Frontend mock — replace with real weather later.
-const weather = MOCK_WEATHER;
-const suggestion = pickSuggestion(weather);
-const difficulty = difficultyFor(weather);
+const EMPTY_STATE = {
+  totalPoints: 0,
+  streak: 0,
+  longestStreak: 0,
+  lastCompletedDate: null,
+  completedDates: [],
+  log: [],
+};
 
 const HEADER = {
   home: {},
@@ -36,7 +41,10 @@ const HEADER = {
 export default function App() {
   const [auth, setAuth] = useState(loadAuth);
   const [view, setView] = useState('home');
-  const [state, setState] = useState(loadState);
+  const [state, setState] = useState(() =>
+    auth && !auth.guest ? EMPTY_STATE : loadState()
+  );
+  const [weather, setWeather] = useState(MOCK_WEATHER);
   const [toast, setToast] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
@@ -46,6 +54,16 @@ export default function App() {
     setTimeout(() => setToast(null), 2400);
   }, []);
 
+  useEffect(() => {
+    getWeather().then(setWeather);
+  }, []);
+
+  useEffect(() => {
+    if (auth && !auth.guest) {
+      fetchState(auth.token).then(setState).catch(() => {});
+    }
+  }, [auth]);
+
   if (!auth) {
     return (
       <div className="app-container">
@@ -54,19 +72,33 @@ export default function App() {
     );
   }
 
+  const suggestion = pickSuggestion(weather);
+  const difficulty = difficultyFor(weather);
   const done = isDoneToday(state);
   const emotion = petEmotion(state);
   const points = Math.round(BASE_POINTS * difficulty);
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     if (done) return;
-    const next = completeToday(state, {
+    const payload = {
       habit: suggestion.habit,
       points,
       difficulty,
-      weather: { icon: weather.icon, condition: weather.condition, temp: weather.temp },
-    });
-    setState(next);
+      weather: { icon: weather.icon, condition: suggestion.label, temp: weather.temp },
+    };
+
+    if (auth.guest) {
+      setState(completeToday(state, payload));
+    } else {
+      try {
+        const data = await completeAction(auth.token, payload);
+        setState(data.state);
+      } catch {
+        showToast("Couldn't save — check your connection and try again.");
+        return;
+      }
+    }
+
     setCelebrate(true);
     showToast(
       difficulty > 1
@@ -79,6 +111,7 @@ export default function App() {
     await apiLogout();
     clearAuth();
     setAuth(null);
+    setState(loadState());
     setView('home');
   };
 

@@ -3,7 +3,12 @@
 const KEY = 'ecolings-state-v2';
 
 function dateKey(d = new Date()) {
-  return d.toISOString().slice(0, 10); // YYYY-MM-DD
+  // Local calendar date (not toISOString(), which is UTC and can land on the
+  // wrong day — the backend's day-boundary logic uses the local system date).
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`; // YYYY-MM-DD
 }
 function todayKey() {
   return dateKey();

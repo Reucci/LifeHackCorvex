@@ -1,5 +1,8 @@
-// FRONTEND MOCK — no weather API yet. Swap `MOCK_WEATHER` / `getWeather()` for a
-// real fetch later; the rule table below stays exactly the same.
+import { API_BASE } from './auth';
+
+// MOCK_WEATHER is the fallback used before the real fetch resolves, or if the
+// backend/weather API is unreachable. The rule table below stays exactly the
+// same either way — it's a pure function of whatever weather object it's handed.
 
 export const MOCK_WEATHER = {
   temp: 18,
@@ -10,6 +13,16 @@ export const MOCK_WEATHER = {
   icon: '🌤️',
   place: 'Singapore',
 };
+
+export async function getWeather() {
+  try {
+    const res = await fetch(`${API_BASE}/weather`);
+    if (!res.ok) return MOCK_WEATHER;
+    return await res.json();
+  } catch {
+    return MOCK_WEATHER;
+  }
+}
 
 // --- The rule table: conditions -> one specific smart action --------------
 const RULES = [
