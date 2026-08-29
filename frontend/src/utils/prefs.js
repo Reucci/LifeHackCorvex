@@ -7,6 +7,7 @@ const DEFAULTS = {
   displayName: 'Leafy Friend',
   reminders: true,
   reminderTime: '18:00',
+  quietHours: true,
   units: 'metric', // 'metric' | 'imperial'
   sound: true,
 };

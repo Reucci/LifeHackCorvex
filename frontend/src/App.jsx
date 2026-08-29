@@ -16,6 +16,7 @@ import CameraVerification from './pages/CameraVerification';
 import { MOCK_WEATHER, pickSuggestion, difficultyFor } from './utils/weather';
 import { completeToday, isDoneToday, loadState, petEmotion, resetState } from './utils/store';
 import { clearAuth, loadAuth, logout as apiLogout } from './utils/auth';
+import { notifyNewQuest, requestNotificationPermission } from './utils/notifications';
 import {
   completeQuest, getAreas, getBadges, getCurrentQuest, getHistory, getMe,
   getPreferences, getStats, resetProgress, savePreferences,
@@ -125,9 +126,21 @@ export default function App() {
   useEffect(() => {
     if (!quest?.slot_end) return undefined;
     const delay = Math.max(1000, new Date(quest.slot_end).getTime() - Date.now() + 1000);
-    const timer = setTimeout(() => selectedArea && getCurrentQuest(selectedArea).then(setQuest), delay);
+    const timer = setTimeout(() => {
+      if (!selectedArea) return;
+      getCurrentQuest(selectedArea).then(setQuest).catch((err) => setError(err.message));
+    }, delay);
     return () => clearTimeout(timer);
   }, [quest?.slot_end, selectedArea]);
+
+  useEffect(() => {
+    if (!quest?.quest_id || !prefs?.reminders || auth?.guest) return;
+    requestNotificationPermission().then((permission) => {
+      if (permission === 'granted') {
+        notifyNewQuest(quest, authUserId, prefs.quiet_hours ?? prefs.quietHours ?? true);
+      }
+    });
+  }, [quest, prefs?.reminders, prefs?.quiet_hours, prefs?.quietHours, auth?.guest, authUserId]);
 
   if (!auth) return <div className="app-container"><Login onAuthed={(next) => { setAuth(next); setView('home'); }} /></div>;
 

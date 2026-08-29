@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { loadPrefs, savePrefs } from '../utils/prefs';
+import { notificationsSupported, requestNotificationPermission } from '../utils/notifications';
 
 export default function Settings({ auth, prefs: serverPrefs, onPrefs, onLogout, onReset }) {
   const [prefs, setPrefs] = useState(() => serverPrefs || loadPrefs());
@@ -15,6 +16,15 @@ export default function Settings({ auth, prefs: serverPrefs, onPrefs, onLogout, 
     await onPrefs?.(next);
     setSavedTick(true);
     setTimeout(() => setSavedTick(false), 1200);
+  };
+
+  const toggleQuestAlerts = async () => {
+    const enabling = !prefs.reminders;
+    if (enabling) {
+      const permission = await requestNotificationPermission();
+      if (permission !== 'granted') return;
+    }
+    await update({ reminders: enabling });
   };
 
   const handleReset = () => {
@@ -52,26 +62,28 @@ export default function Settings({ auth, prefs: serverPrefs, onPrefs, onLogout, 
 
         <button
           className="settings-toggle-row"
-          onClick={() => update({ reminders: !prefs.reminders })}
+          onClick={toggleQuestAlerts}
           type="button"
+          disabled={!notificationsSupported()}
         >
-          <span className="settings-label">Daily reminder</span>
+          <span className="settings-label">New quest alerts (every 2 hours)</span>
           <span className={`switch${prefs.reminders ? ' switch--on' : ''}`}>
             <span className="switch-knob" />
           </span>
         </button>
 
-        {prefs.reminders && (
-          <label className="settings-field">
-            <span className="settings-label">Reminder time</span>
-            <input
-              className="login-input"
-              type="time"
-              value={prefs.reminder_time ?? prefs.reminderTime}
-              onChange={(e) => update(auth?.guest ? { reminderTime: e.target.value } : { reminder_time: e.target.value })}
-            />
-          </label>
-        )}
+        <button
+          className="settings-toggle-row"
+          onClick={() => update(auth?.guest
+            ? { quietHours: !(prefs.quietHours ?? true) }
+            : { quiet_hours: !(prefs.quiet_hours ?? true) })}
+          type="button"
+        >
+          <span className="settings-label">Notifications off for quiet hours (10 PM–8 AM)</span>
+          <span className={`switch${(prefs.quiet_hours ?? prefs.quietHours ?? true) ? ' switch--on' : ''}`}>
+            <span className="switch-knob" />
+          </span>
+        </button>
 
         <button
           className="settings-toggle-row"
