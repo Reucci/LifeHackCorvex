@@ -2,3 +2,16 @@
 .inline-leaf {
   font-size: 15px;
 }
+
+.quest-choice-list { display: grid; gap: 12px; margin-top: 14px; }
+.quest-choice { border: 1px solid #dcebdc; border-radius: 14px; padding: 14px; }
+.quest-choice--selected { border-color: #51a868; background: #f2fbf3; }
+.quest-choice-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.quest-choice p { margin: 8px 0; }
+.quest-choice small { color: #58705d; line-height: 1.4; }
+.quest-difficulty { border-radius: 999px; padding: 3px 8px; font-size: 11px; text-transform: capitalize; background: #edf3ed; }
+.quest-difficulty--hard { background: #ffe6dc; color: #a33a20; }
+.quest-difficulty--medium { background: #fff1c9; color: #785b00; }
+.quest-window { margin: 10px 0; padding: 8px 10px; border-radius: 10px; background: #eef8ee; font-size: 12px; }
+.slot-note { margin-top: 10px; color: #718078; font-size: 12px; text-align: center; }
+.area-card { margin-bottom: 12px; }

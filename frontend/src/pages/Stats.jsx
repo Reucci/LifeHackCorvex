@@ -1,9 +1,11 @@
 import Chicken from '../components/Chicken';
 import { weekPoints, savings } from '../utils/store';
 
-export default function Stats({ state }) {
-  const week = weekPoints(state);
-  const { kwh, co2 } = savings(state);
+export default function Stats({ state, serverBacked = false }) {
+  const week = serverBacked ? state.weekPoints : weekPoints(state);
+  const localSavings = savings(state);
+  const kwh = serverBacked ? state.estimatedKwh : localSavings.kwh;
+  const co2 = serverBacked ? state.estimatedCo2 : localSavings.co2;
 
   return (
     <div className="content">

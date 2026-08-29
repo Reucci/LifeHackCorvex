@@ -1,23 +1,25 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { loadPrefs, savePrefs } from '../utils/prefs';
-import { resetState } from '../utils/store';
 
-export default function Settings({ auth, onPrefs, onLogout }) {
-  const [prefs, setPrefs] = useState(loadPrefs);
+export default function Settings({ auth, prefs: serverPrefs, onPrefs, onLogout, onReset }) {
+  const [prefs, setPrefs] = useState(() => serverPrefs || loadPrefs());
   const [savedTick, setSavedTick] = useState(false);
 
-  const update = (patch) => {
-    const next = savePrefs({ ...prefs, ...patch });
+  useEffect(() => {
+    if (serverPrefs) setPrefs(serverPrefs);
+  }, [serverPrefs]);
+
+  const update = async (patch) => {
+    const next = auth?.guest ? savePrefs({ ...prefs, ...patch }) : { ...prefs, ...patch };
     setPrefs(next);
-    onPrefs?.(next);
+    await onPrefs?.(next);
     setSavedTick(true);
     setTimeout(() => setSavedTick(false), 1200);
   };
 
   const handleReset = () => {
     if (window.confirm('Reset all progress? This clears your streak and history.')) {
-      resetState();
-      window.location.reload();
+      onReset();
     }
   };
 
@@ -31,8 +33,8 @@ export default function Settings({ auth, onPrefs, onLogout }) {
           <input
             className="login-input"
             type="text"
-            value={prefs.displayName}
-            onChange={(e) => update({ displayName: e.target.value })}
+            value={prefs.display_name ?? prefs.displayName ?? ''}
+            onChange={(e) => update(auth?.guest ? { displayName: e.target.value } : { display_name: e.target.value })}
             maxLength={24}
           />
         </label>
@@ -65,8 +67,8 @@ export default function Settings({ auth, onPrefs, onLogout }) {
             <input
               className="login-input"
               type="time"
-              value={prefs.reminderTime}
-              onChange={(e) => update({ reminderTime: e.target.value })}
+              value={prefs.reminder_time ?? prefs.reminderTime}
+              onChange={(e) => update(auth?.guest ? { reminderTime: e.target.value } : { reminder_time: e.target.value })}
             />
           </label>
         )}

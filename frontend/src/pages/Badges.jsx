@@ -1,8 +1,8 @@
 import { badgeStatus } from '../utils/badges';
 
-export default function Badges({ state }) {
-  const badges = badgeStatus(state);
-  const earned = badges.filter((b) => b.earned).length;
+export default function Badges({ state, badges: serverBadges }) {
+  const badges = serverBadges || badgeStatus(state);
+  const earned = badges.filter((badge) => badge.earned).length;
 
   return (
     <div className="content">

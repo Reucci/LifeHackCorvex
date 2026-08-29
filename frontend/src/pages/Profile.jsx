@@ -1,12 +1,11 @@
-import { resetState } from '../utils/store';
 import { earnedCount } from '../utils/badges';
 import { loadPrefs } from '../utils/prefs';
 
-export default function Profile({ state, auth, onNav }) {
+export default function Profile({ state, auth, onNav, badgeCount, prefs: serverPrefs, onReset }) {
   const level = Math.floor(state.totalPoints / 250) + 1;
   const intoLevel = state.totalPoints % 250;
-  const prefs = loadPrefs();
-  const badges = earnedCount(state);
+  const prefs = serverPrefs || loadPrefs();
+  const badges = badgeCount ?? earnedCount(state);
 
   const rows = [
     { icon: '📊', label: 'My Stats', view: 'today' },
@@ -23,8 +22,7 @@ export default function Profile({ state, auth, onNav }) {
 
   const handleReset = () => {
     if (window.confirm('Reset all progress? (demo helper)')) {
-      resetState();
-      window.location.reload();
+      onReset();
     }
   };
 
@@ -34,7 +32,7 @@ export default function Profile({ state, auth, onNav }) {
           <div className="profile-avatar">🐤</div>
           <div className="profile-info">
             <div className="profile-name">
-              {prefs.displayName} 🍃
+              {prefs.display_name || prefs.displayName} 🍃
             </div>
             <div className="profile-level">
               Level {level}
