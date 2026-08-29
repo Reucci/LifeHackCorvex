@@ -12,6 +12,7 @@ import Badges from './pages/Badges';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Leaderboard from './pages/Leaderboard';
+import CameraVerification from './pages/CameraVerification';
 import { MOCK_WEATHER, pickSuggestion, difficultyFor } from './utils/weather';
 import { completeToday, isDoneToday, loadState, petEmotion, resetState } from './utils/store';
 import { clearAuth, loadAuth, logout as apiLogout } from './utils/auth';
@@ -75,6 +76,7 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [celebration, setCelebration] = useState(null);
+  const [verificationTask, setVerificationTask] = useState(null);
   const authUserId = auth?.user?.id;
 
   const showToast = useCallback((message) => {
@@ -143,9 +145,20 @@ export default function App() {
   };
 
   const handleComplete = async (questKey) => {
+    const task = auth.guest
+      ? { action: guestSuggestion.action, icon: guestSuggestion.icon }
+      : { action: quest?.options.find((option) => option.id === questKey)?.description || 'Complete your selected task', icon: '🌱' };
+    setVerificationTask({ task, questKey });
+    setView('verify');
+  };
+
+  const handleVerified = async () => {
+    const { questKey } = verificationTask || {};
+    setVerificationTask(null);
     if (auth.guest) {
       const next = completeToday(state, { habit: guestSuggestion.habit, points: guestPoints, difficulty: guestDifficulty, weather: guestWeather });
       setState(next); setCelebration({ points: guestPoints, difficulty: guestDifficulty });
+      setView('home');
       return;
     }
     if (!quest || quest.completed) return;
@@ -156,7 +169,11 @@ export default function App() {
       setCelebration({ points: result.gold_earned, difficulty: 1 });
       await refreshAccount();
       showToast(`+${result.gold_earned} mint — Ecoling is happy!`);
-    } catch (err) { setError(err.message); } finally { setBusy(false); }
+      setView('home');
+    } catch (err) {
+      setError(err.message);
+      setView('home');
+    } finally { setBusy(false); }
   };
 
   const handleLogout = async () => { await apiLogout(); clearAuth(); setAuth(null); setView('home'); };
@@ -173,7 +190,8 @@ export default function App() {
 
   return (
     <div className={`app-container weather-bg weather-bg--${sky}`} style={{ backgroundImage: `url("${skyImage(sky)}")` }}>
-      <Header title={headerCfg.title} action={headerCfg.action} onMenu={() => setMenuOpen(true)} onAction={() => setView('settings')} />
+      {view !== 'verify' && <Header title={headerCfg.title} action={headerCfg.action} onMenu={() => setMenuOpen(true)} onAction={() => setView('settings')} />}
+      {view === 'verify' && <CameraVerification task={verificationTask?.task || { action: 'Complete your task', icon: '🌱' }} onVerified={handleVerified} onCancel={() => { setVerificationTask(null); setView('home'); }} />}
       {view === 'home' && <Home guest={auth.guest} weather={auth.guest ? guestWeather : quest?.weather} guestSuggestion={guestSuggestion} guestDifficulty={guestDifficulty} guestPoints={guestPoints} quest={quest} areas={areas} areaName={areaName} onAreaChange={chooseArea} done={done} emotion={emotion} streak={state.streak} totalPoints={state.totalPoints} busy={busy} error={error} onComplete={handleComplete} celebration={celebration} onDismissCelebrate={() => setCelebration(null)} />}
       {view === 'today' && <Stats state={state} serverBacked={!auth.guest} />}
       {view === 'sprout' && <Sprout emotion={emotion} streak={state.streak} done={done} />}
@@ -182,9 +200,9 @@ export default function App() {
       {view === 'badges' && <Badges state={state} badges={auth.guest ? null : badges} />}
       {view === 'settings' && <Settings auth={auth} prefs={prefs} onPrefs={handlePrefs} onLogout={handleLogout} onReset={handleReset} />}
       {view === 'leaderboard' && <Leaderboard guest={auth.guest} />}
-      <Navigation active={view} onNavClick={setView} />
-      <Menu open={menuOpen} onClose={() => setMenuOpen(false)} active={view} onNav={setView} />
-      <Toast message={toast} />
+      {view !== 'verify' && <Navigation active={view} onNavClick={setView} />}
+      {view !== 'verify' && <Menu open={menuOpen} onClose={() => setMenuOpen(false)} active={view} onNav={setView} />}
+      {view !== 'verify' && <Toast message={toast} />}
     </div>
   );
 }
