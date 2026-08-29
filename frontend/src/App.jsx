@@ -11,6 +11,7 @@ import Profile from './pages/Profile';
 import Badges from './pages/Badges';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
+import Leaderboard from './pages/Leaderboard';
 import { MOCK_WEATHER, pickSuggestion, difficultyFor } from './utils/weather';
 import { completeToday, isDoneToday, loadState, petEmotion, resetState } from './utils/store';
 import { clearAuth, loadAuth, logout as apiLogout } from './utils/auth';
@@ -38,6 +39,7 @@ const HEADER = {
   home: {}, today: { title: 'Your Impact' }, sprout: { title: 'Ecoling' },
   history: { title: 'Calendar' }, profile: { title: 'Me', action: 'settings' },
   badges: { title: 'Badges' }, settings: { title: 'Settings' },
+  leaderboard: { title: 'Leaderboard' },
 };
 
 const EMPTY_STATE = {
@@ -153,7 +155,7 @@ export default function App() {
       setQuest((current) => ({ ...current, completed: true, selected_quest_key: result.selected_quest_key }));
       setCelebration({ points: result.gold_earned, difficulty: 1 });
       await refreshAccount();
-      showToast(`+${result.gold_earned} gold — Ecoling is happy!`);
+      showToast(`+${result.gold_earned} mint — Ecoling is happy!`);
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
 
@@ -179,6 +181,7 @@ export default function App() {
       {view === 'profile' && <Profile state={state} auth={auth} onNav={setView} badgeCount={badges.filter((badge) => badge.earned).length} prefs={prefs} onReset={handleReset} />}
       {view === 'badges' && <Badges state={state} badges={auth.guest ? null : badges} />}
       {view === 'settings' && <Settings auth={auth} prefs={prefs} onPrefs={handlePrefs} onLogout={handleLogout} onReset={handleReset} />}
+      {view === 'leaderboard' && <Leaderboard guest={auth.guest} />}
       <Navigation active={view} onNavClick={setView} />
       <Menu open={menuOpen} onClose={() => setMenuOpen(false)} active={view} onNav={setView} />
       <Toast message={toast} />

@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta, timezone
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import inspect, text
+from sqlalchemy import func, inspect, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -88,16 +88,38 @@ class Preferences(BaseModel):
     units: str = Field(default="metric", pattern=r"^(metric|imperial)$")
 
 
+class LeaderboardEntry(BaseModel):
+    rank: int
+    user_id: int
+    username: str
+    gold: int
+    daily_streak: int
+    is_current_user: bool
+
+
+class LeaderboardResponse(BaseModel):
+    entries: list[LeaderboardEntry]
+    current_user: LeaderboardEntry
+    total_users: int
+    scope: str
+    week_start: date
+    week_end: date
+
+
+class FriendRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=30)
+
+
 BADGES = (
     ("first-step", "🌱", "First Step", "Complete your first eco action.", "actions", 1),
-    ("getting-started", "🍃", "Getting Started", "Earn 100 total gold.", "gold", 100),
-    ("level-two", "⭐", "Level Up", "Earn 250 total gold.", "gold", 250),
+    ("getting-started", "🍃", "Getting Started", "Earn 100 total mint.", "gold", 100),
+    ("level-two", "⭐", "Level Up", "Earn 250 total mint.", "gold", 250),
     ("week-warrior", "🔥", "Week Warrior", "Keep a 7-day streak going.", "streak", 7),
     ("hot-streak", "💥", "Hot Streak", "Reach a 14-day streak.", "streak", 14),
     ("dedicated", "📅", "Dedicated", "Complete actions on 10 different days.", "days", 10),
     ("rain-or-shine", "🌧️", "Rain or Shine", "Complete a hard weather quest.", "hard", 1),
     ("planet-protector", "🌍", "Planet Protector", "Complete 14 eco actions.", "actions", 14),
-    ("eco-hero", "🏆", "Eco Hero", "Earn 1,000 total gold.", "gold", 1000),
+    ("eco-hero", "🏆", "Eco Hero", "Earn 1,000 total mint.", "gold", 1000),
 )
 
 
@@ -212,6 +234,107 @@ def logout(
 @app.get("/users/me", response_model=UserResponse)
 def get_me(user: models.User = Depends(get_current_user)):
     return user
+
+
+def singapore_week_bounds():
+    now = datetime.now(SINGAPORE_TIME)
+    week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    week_end = week_start + timedelta(days=7)
+    return week_start, week_end
+
+
+def weekly_gold_by_user(db: Session, week_start: datetime, week_end: datetime):
+    start_utc = week_start.astimezone(timezone.utc).replace(tzinfo=None)
+    end_utc = week_end.astimezone(timezone.utc).replace(tzinfo=None)
+    slots = db.query(models.QuestSlot).filter(
+        models.QuestSlot.completed.is_(True),
+        models.QuestSlot.completed_at >= start_utc,
+        models.QuestSlot.completed_at < end_utc,
+    ).all()
+    scores = {}
+    for slot in slots:
+        quest = selected_quest(slot)
+        scores[slot.user_id] = scores.get(slot.user_id, 0) + int(quest.get("points", 0))
+    return scores
+
+
+@app.get("/leaderboard/{scope}", response_model=LeaderboardResponse)
+def leaderboard(
+    scope: str,
+    limit: int = 50,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if scope not in {"global", "friends"}:
+        raise HTTPException(status_code=404, detail="Leaderboard not found")
+    capped_limit = max(1, min(limit, 100))
+    week_start, week_end = singapore_week_bounds()
+    scores = weekly_gold_by_user(db, week_start, week_end)
+    query = db.query(models.User)
+    if scope == "friends":
+        friend_ids = [row.friend_id for row in db.query(models.Friendship).filter(models.Friendship.user_id == user.id)]
+        query = query.filter(models.User.id.in_([user.id, *friend_ids]))
+    ranked_users = sorted(
+        query.all(),
+        key=lambda ranked_user: (-scores.get(ranked_user.id, 0), -ranked_user.daily_streak, ranked_user.username.lower(), ranked_user.id),
+    )
+
+    def entry(ranked_user, rank):
+        return {
+            "rank": rank,
+            "user_id": ranked_user.id,
+            "username": ranked_user.username,
+            "gold": scores.get(ranked_user.id, 0),
+            "daily_streak": ranked_user.daily_streak or 0,
+            "is_current_user": ranked_user.id == user.id,
+        }
+
+    entries = [entry(ranked_user, rank) for rank, ranked_user in enumerate(ranked_users, 1)]
+    return {
+        "entries": entries[:capped_limit],
+        "current_user": next(item for item in entries if item["user_id"] == user.id),
+        "total_users": len(entries),
+        "scope": scope,
+        "week_start": week_start.date(),
+        "week_end": (week_end - timedelta(days=1)).date(),
+    }
+
+
+@app.get("/friends")
+def get_friends(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    friend_ids = [row.friend_id for row in db.query(models.Friendship).filter(models.Friendship.user_id == user.id)]
+    friends = db.query(models.User).filter(models.User.id.in_(friend_ids)).order_by(models.User.username).all() if friend_ids else []
+    return {"friends": [{"user_id": friend.id, "username": friend.username} for friend in friends]}
+
+
+@app.post("/friends", status_code=201)
+def add_friend(request: FriendRequest, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    friend = db.query(models.User).filter(func.lower(models.User.username) == request.username.strip().lower()).first()
+    if friend is None:
+        raise HTTPException(status_code=404, detail="No user has that username")
+    if friend.id == user.id:
+        raise HTTPException(status_code=400, detail="You cannot add yourself")
+    existing = db.query(models.Friendship).filter(models.Friendship.user_id == user.id, models.Friendship.friend_id == friend.id).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="That user is already your friend")
+    db.add_all([
+        models.Friendship(user_id=user.id, friend_id=friend.id),
+        models.Friendship(user_id=friend.id, friend_id=user.id),
+    ])
+    db.commit()
+    return {"user_id": friend.id, "username": friend.username}
+
+
+@app.delete("/friends/{friend_id}", status_code=204)
+def remove_friend(friend_id: int, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    friendship = db.query(models.Friendship).filter(models.Friendship.user_id == user.id, models.Friendship.friend_id == friend_id).first()
+    if friendship is None:
+        raise HTTPException(status_code=404, detail="Friend not found")
+    db.query(models.Friendship).filter(
+        ((models.Friendship.user_id == user.id) & (models.Friendship.friend_id == friend_id))
+        | ((models.Friendship.user_id == friend_id) & (models.Friendship.friend_id == user.id))
+    ).delete(synchronize_session=False)
+    db.commit()
 
 
 def completed_slots(db: Session, user_id: int):

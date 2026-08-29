@@ -71,3 +71,13 @@ class QuestSlot(Base):
     selected_quest_key = Column(String, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Friendship(Base):
+    __tablename__ = "friendships"
+    __table_args__ = (UniqueConstraint("user_id", "friend_id", name="uq_user_friend"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    friend_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

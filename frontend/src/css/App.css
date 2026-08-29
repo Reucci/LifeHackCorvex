@@ -920,3 +920,33 @@
   .suggestion-text { margin-bottom: 6px; }
   .action-btn { padding: 11px; }
 }
+.leaderboard-summary {
+  display: grid;
+  justify-items: center;
+  gap: 0.3rem;
+  padding: 1.25rem;
+}
+
+.leaderboard-summary strong { font-size: 2.5rem; color: #28734f; }
+.leaderboard-summary small { color: #617069; }
+.leaderboard-list { list-style: none; margin: 1rem 0 0; padding: 0.4rem 1rem; }
+.leaderboard-row { display: grid; grid-template-columns: 3rem 1fr auto; align-items: center; gap: 0.6rem; padding: 0.9rem 0.35rem; border-bottom: 1px solid rgba(40, 115, 79, 0.13); }
+.leaderboard-row:last-child { border-bottom: 0; }
+.leaderboard-row--current { margin: 0 -0.35rem; padding-inline: 0.7rem; border-radius: 0.8rem; background: rgba(92, 184, 124, 0.16); }
+.leaderboard-rank { font-weight: 800; text-align: center; }
+.leaderboard-user { display: grid; grid-template-columns: max-content max-content; gap: 0.15rem 0.45rem; min-width: 0; }
+.leaderboard-user strong { overflow: hidden; text-overflow: ellipsis; }
+.leaderboard-user small { grid-column: 1 / -1; color: #617069; }
+.leaderboard-you { align-self: center; padding: 0.1rem 0.4rem; border-radius: 999px; background: #28734f; color: white; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; }
+.leaderboard-gold { font-weight: 800; white-space: nowrap; }
+.leaderboard-divider { padding: 0.8rem 0 0.25rem; color: #617069; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
+.leaderboard-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 1rem; }
+.leaderboard-tab { border: 0; border-radius: 999px; padding: 0.75rem; background: rgba(255,255,255,.72); color: #426354; font-weight: 800; cursor: pointer; }
+.leaderboard-tab--active { background: #28734f; color: white; box-shadow: 0 4px 12px rgba(40,115,79,.25); }
+.friend-manager { margin-top: 1rem; }
+.friend-add { display: grid; gap: 0.65rem; }
+.friend-add > div { display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; }
+.friend-add .action-btn { width: auto; margin: 0; padding-inline: 1rem; }
+.friend-list { list-style: none; margin: 0.8rem 0 0; padding: 0; }
+.friend-list li { display: flex; justify-content: space-between; align-items: center; padding: 0.55rem 0; border-top: 1px solid rgba(40,115,79,.13); }
+@media (max-width: 420px) { .bottom-nav { overflow-x: auto; justify-content: flex-start; } .nav-item { min-width: 62px; } .leaderboard-row { grid-template-columns: 2.5rem 1fr auto; } }

@@ -5,6 +5,7 @@ const ITEMS = [
   { name: 'Your Impact', icon: '📊', view: 'today' },
   { name: 'Ecoling', icon: '🌱', view: 'sprout' },
   { name: 'History', icon: '📋', view: 'history' },
+  { name: 'Leaderboard', icon: '🏆', view: 'leaderboard' },
   { name: 'Me', icon: '👤', view: 'profile' },
 ];
 

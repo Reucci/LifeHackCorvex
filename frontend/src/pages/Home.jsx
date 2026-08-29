@@ -36,7 +36,7 @@ function LiveQuestCard({ quest, weather, busy, onComplete }) {
               <small>{option.reason}</small>
               {option.action_window && <div className="quest-window"><strong>Best time:</strong> {option.action_window.label}</div>}
               <button className={`action-btn${quest.completed ? ' action-btn--done' : ''}`} disabled={busy || quest.completed} onClick={() => onComplete(option.id)}>
-                {selected ? 'Completed ✓' : quest.completed ? 'Other choice completed' : `Choose this (+${option.points} gold)`}
+                {selected ? 'Completed ✓' : quest.completed ? 'Other choice completed' : `Choose this (+${option.points} mint)`}
               </button>
             </article>
           );
@@ -83,7 +83,7 @@ export default function Home({
           {quest ? <LiveQuestCard quest={quest} weather={weather} busy={busy} onComplete={onComplete} /> : <div className="card empty-state">{areaName ? 'Creating weather-safe choices…' : 'Choose your area to receive live quests.'}</div>}
         </>
       )}
-      <div className="stat-row"><div className="stat-pill"><span className="stat-value">🔥 {streak}</span><span className="stat-label">day streak</span></div><div className="stat-pill"><span className="stat-value">🍃 {totalPoints}</span><span className="stat-label">total gold</span></div></div>
+      <div className="stat-row"><div className="stat-pill"><span className="stat-value">🔥 {streak}</span><span className="stat-label">day streak</span></div><div className="stat-pill"><span className="stat-value">🍃 {totalPoints}</span><span className="stat-label">total mint</span></div></div>
     </div>
   );
 }

@@ -10,7 +10,7 @@ PRIORITY_VALUE = {"high": 3, "medium": 2, "low": 1}
 
 
 def calculate_gold(priority, temp_c=None, threshold=None):
-    """Return the generic API's priority-based gold reward.
+    """Return the generic API's priority-based mint reward.
 
     This intentionally remains separate from ``choose_quests``, whose
     Singapore-specific rewards are capped at 4-15 points.

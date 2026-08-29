@@ -30,6 +30,12 @@ export const getHistory = () => apiRequest('/quests/history');
 export const getStats = () => apiRequest('/users/me/stats');
 export const getBadges = () => apiRequest('/users/me/badges');
 export const getPreferences = () => apiRequest('/users/me/preferences');
+export const getLeaderboard = (scope = 'global') => apiRequest(`/leaderboard/${scope}`);
+export const getFriends = () => apiRequest('/friends');
+export const addFriend = (username) => apiRequest('/friends', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username }),
+});
+export const removeFriend = (friendId) => apiRequest(`/friends/${friendId}`, { method: 'DELETE' });
 
 export function getCurrentQuest(area) {
   const query = new URLSearchParams({

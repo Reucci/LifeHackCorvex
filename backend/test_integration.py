@@ -79,6 +79,40 @@ class IntegratedAccountApiTest(unittest.TestCase):
         self.assertEqual(stats["completed_actions"], 1)
         self.assertTrue(next(b for b in badges["badges"] if b["id"] == "first-step")["earned"])
 
+        second = client.post("/auth/register", json={
+            "username": "LeaderboardRival",
+            "password": "securepass123",
+        })
+        self.assertEqual(second.status_code, 201, second.text)
+        leaderboard = client.get("/leaderboard/global", headers=headers)
+        self.assertEqual(leaderboard.status_code, 200, leaderboard.text)
+        ranking = leaderboard.json()
+        self.assertEqual(ranking["entries"][0]["username"], "IntegrationUser")
+        self.assertEqual(ranking["current_user"]["rank"], 1)
+        self.assertTrue(ranking["current_user"]["is_current_user"])
+        self.assertEqual(ranking["current_user"]["gold"], 8)
+        self.assertEqual(ranking["scope"], "global")
+        self.assertIn("week_start", ranking)
+        self.assertNotIn("password_hash", ranking["entries"][0])
+
+        rival_headers = {"Authorization": f"Bearer {second.json()['token']}"}
+        rival_ranking = client.get("/leaderboard/global?limit=1", headers=rival_headers).json()
+        self.assertEqual(len(rival_ranking["entries"]), 1)
+        self.assertEqual(rival_ranking["current_user"]["rank"], 2)
+        self.assertFalse(rival_ranking["entries"][0]["is_current_user"])
+
+        added = client.post("/friends", headers=headers, json={"username": "leaderboardrival"})
+        self.assertEqual(added.status_code, 201, added.text)
+        friends = client.get("/leaderboard/friends", headers=headers).json()
+        self.assertEqual(friends["scope"], "friends")
+        self.assertEqual([entry["username"] for entry in friends["entries"]], ["IntegrationUser", "LeaderboardRival"])
+        self.assertEqual(len(client.get("/friends", headers=headers).json()["friends"]), 1)
+        removed = client.delete(f"/friends/{second.json()['user']['id']}", headers=headers)
+        self.assertEqual(removed.status_code, 204, removed.text)
+
+        unauthorized = client.get("/leaderboard/global")
+        self.assertEqual(unauthorized.status_code, 401, unauthorized.text)
+
         reset = client.delete("/users/me/progress", headers=headers)
         self.assertEqual(reset.status_code, 204, reset.text)
         self.assertEqual(client.get("/users/me/stats", headers=headers).json()["completed_actions"], 0)
