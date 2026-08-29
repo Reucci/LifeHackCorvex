@@ -11,12 +11,13 @@ import Profile from './pages/Profile';
 import Badges from './pages/Badges';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
+import Verify from './pages/Verify';
 import { MOCK_WEATHER, pickSuggestion, difficultyFor } from './utils/weather';
 import { completeToday, isDoneToday, loadState, petEmotion, resetState } from './utils/store';
 import { clearAuth, loadAuth, logout as apiLogout } from './utils/auth';
 import {
-  completeQuest, getAreas, getBadges, getCurrentQuest, getHistory, getMe,
-  getPreferences, getStats, resetProgress, savePreferences,
+  getAreas, getBadges, getCurrentQuest, getHistory, getMe,
+  getPreferences, getStats, resetProgress, savePreferences, verifyQuest,
 } from './utils/api';
 import './css/App.css';
 
@@ -37,7 +38,7 @@ function skyForWeather(weather, guest) {
 const HEADER = {
   home: {}, today: { title: 'Your Impact' }, sprout: { title: 'Ecoling' },
   history: { title: 'Calendar' }, profile: { title: 'Me', action: 'settings' },
-  badges: { title: 'Badges' }, settings: { title: 'Settings' },
+  badges: { title: 'Badges' }, settings: { title: 'Settings' }, verify: { title: 'Prove it' },
 };
 
 const EMPTY_STATE = {
@@ -73,6 +74,7 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [celebration, setCelebration] = useState(null);
+  const [challenge, setChallenge] = useState(null);
   const authUserId = auth?.user?.id;
 
   const showToast = useCallback((message) => {
@@ -140,21 +142,56 @@ export default function App() {
     if (name) localStorage.setItem(`ecolings-area-${auth.user.id}`, name);
   };
 
-  const handleComplete = async (questKey) => {
+  // Step 1: user picked a challenge — open the camera / proof flow for it.
+  const startChallenge = (option) => {
     if (auth.guest) {
-      const next = completeToday(state, { habit: guestSuggestion.habit, points: guestPoints, difficulty: guestDifficulty, weather: guestWeather });
-      setState(next); setCelebration({ points: guestPoints, difficulty: guestDifficulty });
-      return;
+      setChallenge({
+        guest: true,
+        title: guestSuggestion.habit,
+        description: `${guestSuggestion.summary} ${guestSuggestion.action}`,
+        points: guestPoints,
+      });
+    } else {
+      if (!quest || quest.completed || !option) return;
+      setChallenge({
+        guest: false,
+        questId: quest.quest_id,
+        questKey: option.id,
+        title: option.title,
+        description: option.description,
+        points: option.points,
+      });
     }
-    if (!quest || quest.completed) return;
-    setBusy(true);
-    try {
-      const result = await completeQuest(quest.quest_id, questKey);
-      setQuest((current) => ({ ...current, completed: true, selected_quest_key: result.selected_quest_key }));
+    setError('');
+    setView('verify');
+  };
+
+  // Step 2: send the proof photo to the verifying bot.
+  const submitProof = async (imageDataUrl) => {
+    if (challenge.guest) {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      if (!imageDataUrl || imageDataUrl.length < 3000) {
+        return { verified: false, reason: 'That photo looks empty — point the camera at what you did.' };
+      }
+      return { verified: true, reason: 'Looks good! Ecoling is proud of you. 🌱', gold_earned: guestPoints };
+    }
+    return verifyQuest(challenge.questId, challenge.questKey, imageDataUrl);
+  };
+
+  // Step 3: proof passed — record the completion and celebrate.
+  const finishChallenge = async (result) => {
+    if (challenge.guest) {
+      const next = completeToday(state, { habit: challenge.title, points: result.gold_earned, difficulty: guestDifficulty, weather: guestWeather });
+      setState(next);
+      setCelebration({ points: result.gold_earned, difficulty: guestDifficulty });
+    } else {
+      setQuest((current) => ({ ...current, completed: true, selected_quest_key: challenge.questKey }));
       setCelebration({ points: result.gold_earned, difficulty: 1 });
       await refreshAccount();
       showToast(`+${result.gold_earned} gold — Ecoling is happy!`);
-    } catch (err) { setError(err.message); } finally { setBusy(false); }
+    }
+    setChallenge(null);
+    setView('home');
   };
 
   const handleLogout = async () => { await apiLogout(); clearAuth(); setAuth(null); setView('home'); };
@@ -172,7 +209,8 @@ export default function App() {
   return (
     <div className={`app-container weather-bg weather-bg--${sky}`} style={{ backgroundImage: `url("${skyImage(sky)}")` }}>
       <Header title={headerCfg.title} action={headerCfg.action} onMenu={() => setMenuOpen(true)} onAction={() => setView('settings')} />
-      {view === 'home' && <Home guest={auth.guest} weather={auth.guest ? guestWeather : quest?.weather} guestSuggestion={guestSuggestion} guestDifficulty={guestDifficulty} guestPoints={guestPoints} quest={quest} areas={areas} areaName={areaName} onAreaChange={chooseArea} done={done} emotion={emotion} streak={state.streak} totalPoints={state.totalPoints} busy={busy} error={error} onComplete={handleComplete} celebration={celebration} onDismissCelebrate={() => setCelebration(null)} />}
+      {view === 'home' && <Home guest={auth.guest} weather={auth.guest ? guestWeather : quest?.weather} guestSuggestion={guestSuggestion} guestDifficulty={guestDifficulty} guestPoints={guestPoints} quest={quest} areas={areas} areaName={areaName} onAreaChange={chooseArea} done={done} emotion={emotion} streak={state.streak} totalPoints={state.totalPoints} busy={busy} error={error} onStartChallenge={startChallenge} celebration={celebration} onDismissCelebrate={() => setCelebration(null)} />}
+      {view === 'verify' && challenge && <Verify challenge={challenge} onSubmit={submitProof} onVerified={finishChallenge} onCancel={() => { setChallenge(null); setView('home'); }} />}
       {view === 'today' && <Stats state={state} serverBacked={!auth.guest} />}
       {view === 'sprout' && <Sprout emotion={emotion} streak={state.streak} done={done} />}
       {view === 'history' && <History state={state} />}

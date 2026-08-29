@@ -14,6 +14,7 @@ from database import engine, SessionLocal, Base
 import models
 from rules import choose_quests
 from weather_service import get_forecast_areas, get_weather, WeatherUnavailableError
+from verification_service import decode_data_url, verify_photo
 
 app = FastAPI()
 app.add_middleware(
@@ -69,6 +70,12 @@ class AuthResponse(BaseModel):
 class CompleteQuestRequest(BaseModel):
     quest_id: int
     quest_key: str
+
+
+class VerifyQuestRequest(BaseModel):
+    quest_id: int
+    quest_key: str
+    image: str = Field(description="Proof photo as a data: URL (data:image/jpeg;base64,...)")
 
 
 class Preferences(BaseModel):
@@ -442,20 +449,44 @@ async def current_quest(
     }
 
 
+def _load_current_slot(db: Session, user: models.User, quest_id: int) -> models.QuestSlot:
+    slot_start, _ = current_quest_slot()
+    quest_slot = db.query(models.QuestSlot).filter(
+        models.QuestSlot.id == quest_id,
+        models.QuestSlot.user_id == user.id,
+        models.QuestSlot.slot_start == slot_start.replace(tzinfo=None),
+    ).first()
+    if quest_slot is None:
+        raise HTTPException(status_code=404, detail="The current quest slot was not found")
+    return quest_slot
+
+
+def _award_quest_slot(db: Session, user: models.User, quest_slot: models.QuestSlot, selected_quest: dict) -> int:
+    today = datetime.now(SINGAPORE_TIME).date()
+    yesterday = today - timedelta(days=1)
+    if user.last_completed_date != today:
+        user.daily_streak = (
+            user.daily_streak + 1 if user.last_completed_date == yesterday else 1
+        )
+    gold_earned = int(selected_quest["points"])
+    user.gold += gold_earned
+    user.ecoling_state = "thriving"
+    user.last_completed_date = today
+    quest_slot.completed = True
+    quest_slot.selected_quest_key = selected_quest["id"]
+    quest_slot.completed_at = datetime.utcnow()
+    db.commit()
+    db.refresh(user)
+    return gold_earned
+
+
 @app.post("/actions/complete")
 def complete_action(
     completion: CompleteQuestRequest,
     user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    slot_start, _ = current_quest_slot()
-    quest_slot = db.query(models.QuestSlot).filter(
-        models.QuestSlot.id == completion.quest_id,
-        models.QuestSlot.user_id == user.id,
-        models.QuestSlot.slot_start == slot_start.replace(tzinfo=None),
-    ).first()
-    if quest_slot is None:
-        raise HTTPException(status_code=404, detail="The current quest slot was not found")
+    quest_slot = _load_current_slot(db, user, completion.quest_id)
 
     if quest_slot.completed:
         return {
@@ -472,24 +503,67 @@ def complete_action(
     if selected_quest is None:
         raise HTTPException(status_code=400, detail="Select one of the offered quests")
 
-    today = datetime.now(SINGAPORE_TIME).date()
-    yesterday = today - timedelta(days=1)
-    if user.last_completed_date != today:
-        user.daily_streak = (
-            user.daily_streak + 1 if user.last_completed_date == yesterday else 1
-        )
-    gold_earned = int(selected_quest["points"])
-    user.gold += gold_earned
-    user.ecoling_state = "thriving"
-    user.last_completed_date = today
-    quest_slot.completed = True
-    quest_slot.selected_quest_key = selected_quest["id"]
-    quest_slot.completed_at = datetime.utcnow()
-    db.commit()
-    db.refresh(user)
+    gold_earned = _award_quest_slot(db, user, quest_slot, selected_quest)
 
     return {
         "message": "Task completed!",
+        "gold_earned": gold_earned,
+        "user": UserResponse.model_validate(user),
+        "completed": True,
+        "selected_quest_key": selected_quest["id"],
+    }
+
+
+@app.post("/actions/verify")
+async def verify_action(
+    request: VerifyQuestRequest,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Check a proof photo against the chosen quest, then award gold if it passes."""
+    quest_slot = _load_current_slot(db, user, request.quest_id)
+
+    selected_quest = next(
+        (quest for quest in quest_slot.quest_options if quest["id"] == request.quest_key),
+        None,
+    )
+    if selected_quest is None:
+        raise HTTPException(status_code=400, detail="Select one of the offered quests")
+
+    if quest_slot.completed:
+        return {
+            "verified": True,
+            "confidence": "high",
+            "reason": "This two-hour quest was already completed.",
+            "gold_earned": 0,
+            "completed": True,
+            "selected_quest_key": quest_slot.selected_quest_key,
+        }
+
+    try:
+        image_bytes, media_type = decode_data_url(request.image)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+    result = await verify_photo(
+        image_bytes, media_type, selected_quest["title"], selected_quest["description"]
+    )
+
+    if not result["verified"]:
+        return {
+            "verified": False,
+            "confidence": result["confidence"],
+            "reason": result["reason"],
+            "gold_earned": 0,
+            "completed": False,
+        }
+
+    gold_earned = _award_quest_slot(db, user, quest_slot, selected_quest)
+    return {
+        "verified": True,
+        "confidence": result["confidence"],
+        "reason": result["reason"],
+        "checked_by": result.get("checked_by", "ai"),
         "gold_earned": gold_earned,
         "user": UserResponse.model_validate(user),
         "completed": True,

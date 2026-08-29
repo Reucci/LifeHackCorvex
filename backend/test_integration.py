@@ -83,6 +83,62 @@ class IntegratedAccountApiTest(unittest.TestCase):
         self.assertEqual(reset.status_code, 204, reset.text)
         self.assertEqual(client.get("/users/me/stats", headers=headers).json()["completed_actions"], 0)
 
+    def test_photo_proof_verification_awards_gold(self):
+        client = TestClient(app)
+        payload = client.post("/auth/register", json={
+            "username": "ProofUser",
+            "password": "securepass123",
+        }).json()
+        headers = {"Authorization": f"Bearer {payload['token']}"}
+
+        slot_start, slot_end = current_quest_slot()
+        db = SessionLocal()
+        db.add(models.QuestSlot(
+            user_id=payload["user"]["id"],
+            slot_start=slot_start.replace(tzinfo=None),
+            slot_end=slot_end.replace(tzinfo=None),
+            quest_options=[{
+                "id": "unplug-idle-devices",
+                "title": "Unplug three idle devices",
+                "description": "Disconnect chargers that are not being used.",
+                "points": 8,
+                "difficulty": "medium",
+            }],
+            weather_snapshot={
+                "observations": {"temperature": {"value": 30}},
+                "forecast": {"condition": "Fair", "area": "Bishan"},
+            },
+        ))
+        db.commit()
+        quest_id = db.query(models.QuestSlot).filter_by(user_id=payload["user"]["id"]).first().id
+        db.close()
+
+        one_by_one_png = (
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
+            "AAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        )
+        # With no ANTHROPIC_* credentials configured the verifier falls back to
+        # accepting the photo, so the quest completes and gold is awarded.
+        response = client.post("/actions/verify", headers=headers, json={
+            "quest_id": quest_id,
+            "quest_key": "unplug-idle-devices",
+            "image": one_by_one_png,
+        })
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertTrue(body["verified"])
+        self.assertEqual(body["gold_earned"], 8)
+        self.assertEqual(client.get("/users/me/stats", headers=headers).json()["total_gold"], 8)
+
+        bad = client.post("/actions/verify", headers=headers, json={
+            "quest_id": quest_id,
+            "quest_key": "unplug-idle-devices",
+            "image": "not-a-data-url",
+        })
+        # Slot already completed -> short-circuits before decoding the image.
+        self.assertEqual(bad.status_code, 200, bad.text)
+        self.assertTrue(bad.json()["completed"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -45,6 +45,14 @@ export const completeQuest = (questId, questKey) => apiRequest('/actions/complet
   body: JSON.stringify({ quest_id: questId, quest_key: questKey }),
 });
 
+// Submit a proof photo (data: URL). The bot checks it against the quest and,
+// if it passes, the quest is completed and gold is awarded server-side.
+export const verifyQuest = (questId, questKey, image) => apiRequest('/actions/verify', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ quest_id: questId, quest_key: questKey, image }),
+});
+
 export const savePreferences = (preferences) => apiRequest('/users/me/preferences', {
   method: 'PUT',
   headers: { 'Content-Type': 'application/json' },
