@@ -10,6 +10,16 @@ SINGAPORE_TIME = timezone(timedelta(hours=8))
 
 QUESTS = [
     {
+        "id": "bring-laundry-in-before-rain",
+        "title": "Bring drying laundry in before the rain",
+        "description": "Protect a naturally dried load now so you do not need to run the dryer again.",
+        "category": "laundry",
+        "base_points": 20,
+        "requires": {"daylight": True, "radar_rain_approaching": True},
+        "bonuses": {"radar_high_confidence": 4},
+        "urgent": True,
+    },
+    {
         "id": "line-dry-clothes",
         "title": "Line-dry one load of laundry",
         "description": "Use today's dry conditions instead of running the dryer.",
@@ -99,13 +109,19 @@ def build_features(weather, now=None):
     wind_speed = _value(weather, "wind_speed")
     wind_speed = float(wind_speed) if wind_speed is not None else 0
     condition = (weather.get("forecast") or {}).get("condition", "").lower()
+    radar = weather.get("radar") or {}
+    radar_rain_approaching = (
+        radar.get("movement") == "approaching"
+        and radar.get("eta_minutes") is not None
+        and radar["eta_minutes"] <= 120
+    )
 
     apparent_temperature = temperature
     if humidity is not None and temperature >= 27:
         apparent_temperature += max(0, humidity - 60) * 0.04
 
     raining = rainfall > 0
-    rain_expected = any(term in condition for term in RAIN_TERMS)
+    rain_expected = any(term in condition for term in RAIN_TERMS) or radar_rain_approaching
     features = {
         "daylight": 7 <= now.hour < 19,
         "hot": temperature >= 30,
@@ -118,6 +134,8 @@ def build_features(weather, now=None):
         "rain_context": raining or rain_expected,
         "breezy": wind_speed >= 10,
         "sunny": any(term in condition for term in SUN_TERMS),
+        "radar_rain_approaching": radar_rain_approaching,
+        "radar_high_confidence": radar.get("confidence") == "high",
     }
     return features, round(apparent_temperature, 1)
 
@@ -139,22 +157,18 @@ def choose_quests(weather, count=2, seed=None, now=None):
     pool = sorted(candidates, key=lambda item: item[0], reverse=True)[:5]
     rng = random.Random(seed)
     selected_options = []
+    urgent = next((item for item in pool if item[1].get("urgent")), None)
+    if urgent:
+        pool.remove(urgent)
+        selected_options.append(_format_quest(*urgent, weather, features, apparent_temperature, now))
     while pool and len(selected_options) < count:
         minimum = min(score for score, _ in pool)
         weights = [score - minimum + 2 for score, _ in pool]
         chosen_index = rng.choices(range(len(pool)), weights=weights, k=1)[0]
         raw_score, selected = pool.pop(chosen_index)
-        reward = max(4, min(15, round(raw_score * 0.6)))
-        difficulty = "hard" if reward >= 12 else "medium" if reward >= 8 else "easy"
-        selected_options.append({
-            "id": selected["id"],
-            "title": selected["title"],
-            "description": selected["description"],
-            "category": selected["category"],
-            "points": reward,
-            "difficulty": difficulty,
-            "reason": _weather_reason(weather, features, apparent_temperature),
-        })
+        selected_options.append(
+            _format_quest(raw_score, selected, weather, features, apparent_temperature, now)
+        )
     return selected_options
 
 
@@ -163,10 +177,73 @@ def choose_quest(weather, now=None):
     return choose_quests(weather, count=1, now=now)[0]
 
 
+def _format_quest(raw_score, selected, weather, features, apparent_temperature, now):
+    reward = max(4, min(15, round(raw_score * 0.6)))
+    difficulty = "hard" if reward >= 12 else "medium" if reward >= 8 else "easy"
+    return {
+        "id": selected["id"],
+        "title": selected["title"],
+        "description": selected["description"],
+        "category": selected["category"],
+        "points": reward,
+        "difficulty": difficulty,
+        "reason": _weather_reason(weather, features, apparent_temperature),
+        "action_window": _predict_action_window(selected["id"], weather, features, now),
+    }
+
+
+def _predict_action_window(quest_id, weather, features, now):
+    now = now or datetime.now(SINGAPORE_TIME)
+    slot_end = now.replace(hour=now.hour - now.hour % 2, minute=0, second=0, microsecond=0) + timedelta(hours=2)
+    radar = weather.get("radar") or {}
+    confidence = radar.get("confidence", "medium")
+
+    if quest_id == "bring-laundry-in-before-rain" and radar.get("eta_minutes"):
+        safe_minutes = max(5, radar["eta_minutes"] - 10)
+        end = min(slot_end, now + timedelta(minutes=safe_minutes))
+        return {
+            "start": now.isoformat(),
+            "end": end.isoformat(),
+            "label": f"Act within {safe_minutes} minutes, before the rain echo may arrive",
+            "confidence": confidence,
+            "basis": f"Radar estimates nearby rain in about {radar['eta_minutes']} minutes",
+        }
+
+    if quest_id in {"close-sun-facing-blinds", "delay-heavy-appliances"} and features["hot"]:
+        end = min(slot_end, now + timedelta(minutes=30))
+        return {
+            "start": now.isoformat(),
+            "end": end.isoformat(),
+            "label": "Best in the next 30 minutes, before more heat builds indoors",
+            "confidence": "medium",
+            "basis": "Current heat makes prevention more efficient than cooling later",
+        }
+
+    if radar.get("movement") == "moving_away":
+        return {
+            "start": now.isoformat(),
+            "end": slot_end.isoformat(),
+            "label": "Good anytime in this slot; nearby rain is moving away",
+            "confidence": confidence,
+            "basis": "Recent radar frames show the nearest rain echo receding",
+        }
+
+    return {
+        "start": now.isoformat(),
+        "end": slot_end.isoformat(),
+        "label": "Complete anytime before this two-hour slot ends",
+        "confidence": "medium",
+        "basis": "Current observations and the two-hour area forecast agree with this quest",
+    }
+
+
 def _weather_reason(weather, features, apparent_temperature):
     temperature = _value(weather, "temperature")
     area = (weather.get("forecast") or {}).get("area", "your area")
     condition = (weather.get("forecast") or {}).get("condition")
+    radar = weather.get("radar") or {}
+    if features["radar_rain_approaching"]:
+        return f"Three recent radar frames indicate rain may reach {area} in about {radar['eta_minutes']} minutes."
     if features["raining"]:
         return f"Rain is being observed near {area}, so an indoor quest is safest."
     if features["rain_expected"]:

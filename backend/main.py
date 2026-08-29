@@ -226,7 +226,8 @@ async def current_quest(
         abs(stored_location.get("latitude", 0) - latitude) < 0.00001
         and abs(stored_location.get("longitude", 0) - longitude) < 0.00001
     )
-    if existing and (existing.completed or same_location):
+    has_predictive_weather = bool(existing and "radar" in (existing.weather_snapshot or {}))
+    if existing and (existing.completed or (same_location and has_predictive_weather)):
         return {
             "quest_id": existing.id,
             "options": existing.quest_options,
@@ -248,7 +249,7 @@ async def current_quest(
         weather,
         count=2,
         seed=f"{user.id}:{slot_start.isoformat()}",
-        now=slot_start,
+        now=datetime.now(SINGAPORE_TIME),
     )
     if existing:
         quest_slot = existing
@@ -323,7 +324,7 @@ def complete_action(
     db.refresh(user)
 
     return {
-        "message": "Action completed!",
+        "message": "Task completed!",
         "gold_earned": gold_earned,
         "user": UserResponse.model_validate(user),
         "completed": True,

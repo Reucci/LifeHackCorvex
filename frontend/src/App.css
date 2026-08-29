@@ -177,6 +177,7 @@ header {
 .weather-reading span { color: var(--text-h); font-weight: 600; }
 .weather-reading small { font-size: 12px; }
 .weather-reading .weather-warning { color: #b45309; }
+.weather-reading .radar-summary { color: var(--accent); font-weight: 600; }
 .action-card { padding: 28px; }
 .action-card h2 { margin-top: 8px; }
 .action-card > p:not(.eyebrow):not(.message) { margin: 8px 0 24px; }
@@ -221,6 +222,19 @@ header {
 
 .quest-option > p { margin: 12px 0; font-size: 14px; }
 .quest-option .weather-reason { flex-grow: 1; }
+
+.action-window {
+  display: grid;
+  gap: 3px;
+  margin: 0 0 14px;
+  border-radius: 10px;
+  background: var(--accent-bg);
+  padding: 10px 12px;
+  color: var(--text-h);
+  font-size: 13px;
+}
+
+.action-window small { color: var(--text); }
 
 .difficulty {
   border-radius: 999px;

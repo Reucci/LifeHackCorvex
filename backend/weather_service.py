@@ -1,9 +1,13 @@
+# Read weather data and determine quest
+
 import asyncio
 import math
 import time
 from datetime import datetime, timezone
 
 import httpx
+
+from radar_service import get_radar_analysis, RadarUnavailableError
 
 
 API_ROOT = "https://api-open.data.gov.sg/v2/real-time/api" # Data from gov api
@@ -47,13 +51,27 @@ async def _fetch_json(client, endpoint):
     if cached and now - cached[0] < CACHE_SECONDS:
         return cached[1]
 
-    response = await client.get(f"{API_ROOT}/{endpoint}")
-    response.raise_for_status()
-    payload = response.json()
-    if payload.get("code") != 0 or not payload.get("data"):
-        raise WeatherUnavailableError(payload.get("errorMsg") or "Weather data unavailable")
-    _cache[endpoint] = (now, payload["data"])
-    return payload["data"]
+    last_error = None
+    for attempt in range(2):
+        try:
+            if attempt:
+                await asyncio.sleep(0.35)
+            response = await client.get(f"{API_ROOT}/{endpoint}")
+            response.raise_for_status()
+            payload = response.json()
+            data = payload.get("data")
+            readings_missing = endpoint != "two-hr-forecast" and not (data or {}).get("readings")
+            if payload.get("code") != 0 or not data or readings_missing:
+                raise WeatherUnavailableError(payload.get("errorMsg") or "Weather data unavailable")
+            _cache[endpoint] = (time.monotonic(), data)
+            return data
+        except (httpx.HTTPError, ValueError, WeatherUnavailableError) as error:
+            last_error = error
+
+    # Official real time feeds have short gaps, timestamp is cached an payload is still checked and surfaced as stale to the user
+    if cached:
+        return cached[1]
+    raise last_error
 
 
 def _parse_timestamp(value):
@@ -135,6 +153,7 @@ def _nearest_forecast(data, latitude, longitude):
 async def get_weather(latitude, longitude):
     latitude, longitude = float(latitude), float(longitude)
     _validate_singapore_location(latitude, longitude)
+    radar_task = asyncio.create_task(get_radar_analysis(latitude, longitude))
 
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
@@ -173,10 +192,17 @@ async def get_weather(latitude, longitude):
     if observations["temperature"] is None:
         raise WeatherUnavailableError("A current temperature reading is required")
 
+    try:
+        radar = await radar_task
+    except RadarUnavailableError:
+        radar = None
+        warnings.append("radar movement analysis unavailable")
+
     return {
         "location": {"latitude": latitude, "longitude": longitude},
         "observations": observations,
         "forecast": forecast,
+        "radar": radar,
         "warnings": warnings,
         "source": "NEA via data.gov.sg",
         "fetched_at": datetime.now(timezone.utc).isoformat(),

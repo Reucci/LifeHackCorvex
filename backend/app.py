@@ -1,4 +1,4 @@
-"""Compatibility launcher for the project's FastAPI application."""
+# Compatibility launcher for fastapi
 
 import os
 

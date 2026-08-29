@@ -192,6 +192,7 @@ function App() {
   const temperature = dailyQuest?.weather.observations.temperature
   const humidity = dailyQuest?.weather.observations.humidity
   const forecast = dailyQuest?.weather.forecast
+  const radar = dailyQuest?.weather.radar
 
   return (
     <main className="app-shell dashboard-shell">
@@ -234,6 +235,14 @@ function App() {
               {temperature.station.name} · {temperature.station.distance_km} km away · {temperature.age_minutes} min old
             </small>
             {humidity && <small>Humidity {humidity.value}% · forecast area {forecast?.area || 'unavailable'}</small>}
+            {radar && (
+              <small className="radar-summary">
+                Radar: {radar.movement.replaceAll('_', ' ')}
+                {radar.nearest_rain_distance_km !== null ? ` · nearest rain ${radar.nearest_rain_distance_km} km` : ''}
+                {radar.eta_minutes ? ` · ETA about ${radar.eta_minutes} min` : ''}
+                {` · ${radar.confidence} confidence`}
+              </small>
+            )}
             {dailyQuest.weather.warnings.map((warning) => <small className="weather-warning" key={warning}>⚠ {warning}</small>)}
           </div>
         ) : <p>{selectedAreaName ? 'Loading official NEA readings…' : 'Choose your area to load weather.'}</p>}
@@ -258,6 +267,13 @@ function App() {
                     </div>
                     <p>{quest.description}</p>
                     <p className="weather-reason">{quest.reason}</p>
+                    {quest.action_window && (
+                      <div className="action-window">
+                        <strong>Best time</strong>
+                        <span>{quest.action_window.label}</span>
+                        <small>{quest.action_window.basis} · {quest.action_window.confidence} confidence</small>
+                      </div>
+                    )}
                     <button className="primary-button" onClick={() => completeAction(quest.id)} disabled={loading || dailyQuest.completed}>
                       {selected ? 'Completed ✓' : dailyQuest.completed ? 'Other choice completed' : loading ? 'Saving…' : `Choose this · +${quest.points} gold`}
                     </button>
