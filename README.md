@@ -29,3 +29,8 @@ service-role key in frontend code.
 Render services. Create a Render Blueprint from this repository and provide
 `ECOLINGS_DATABASE_URL` when prompted. The frontend is configured to call the
 public backend, and both services redeploy automatically from `main`.
+
+For local frontend development against the public backend, copy
+`frontend/.env.example` to `frontend/.env.local` before running `npm start`.
+The deployed API accepts requests from the production site and local React
+development servers on ports 3000 and 5173.
