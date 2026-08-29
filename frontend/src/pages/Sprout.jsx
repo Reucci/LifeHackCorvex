@@ -1,14 +1,8 @@
 import Chicken from '../components/Chicken';
 
-const MOOD = {
-  excited: { label: 'Full of energy!', pct: 100 },
-  happy: { label: 'Happy and cared for', pct: 80 },
-  normal: { label: 'Doing okay', pct: 50 },
-  sad: { label: 'Feeling neglected', pct: 20 },
-};
-
-export default function Sprout({ ecolingName, emotion, streak, done }) {
-  const mood = MOOD[emotion] || MOOD.normal;
+export default function Sprout({ ecolingName, mood, streak, done }) {
+  const emotion = mood?.emotion || 'normal';
+  const currentMood = mood || { label: 'Doing okay', pct: 50 };
   const name = ecolingName || 'Your Ecoling';
   return (
     <div className="content">
@@ -20,9 +14,9 @@ export default function Sprout({ ecolingName, emotion, streak, done }) {
             <span className="mood-heart">❤️</span>
           </div>
           <div className="mood-bar">
-            <div className="mood-fill" style={{ width: `${mood.pct}%` }} />
+            <div className="mood-fill" style={{ width: `${currentMood.pct}%` }} />
           </div>
-          <div className="mood-label">{mood.label}</div>
+          <div className="mood-label">{currentMood.label}</div>
         </div>
 
         <div className="card">

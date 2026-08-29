@@ -15,7 +15,7 @@ import Leaderboard from './pages/Leaderboard';
 import CameraVerification from './pages/CameraVerification';
 import NameEcoling from './components/NameEcoling';
 import { MOCK_WEATHER, pickSuggestion, difficultyFor } from './utils/weather';
-import { completeToday, isDoneToday, loadState, petEmotion, resetState } from './utils/store';
+import { completeToday, isDoneToday, loadState, petMood, resetState } from './utils/store';
 import { clearAuth, loadAuth, logout as apiLogout } from './utils/auth';
 import { notifyNewQuest, requestNotificationPermission } from './utils/notifications';
 import {
@@ -152,7 +152,8 @@ export default function App() {
   const guestPoints = Math.round(25 * guestDifficulty);
   const sky = skyForWeather(auth.guest ? guestWeather : quest?.weather, auth.guest);
   const done = auth.guest ? isDoneToday(state) : Boolean(quest?.completed);
-  const emotion = auth.guest ? petEmotion(state) : (auth.user.ecoling_state === 'thriving' ? 'happy' : 'normal');
+  const mood = petMood(state);
+  const emotion = mood.emotion;
 
   const chooseArea = (name) => {
     setAreaName(name); setQuest(null);
@@ -214,7 +215,7 @@ export default function App() {
       {view === 'verify' && <CameraVerification task={verificationTask?.task || { action: 'Complete your task', icon: '🌱' }} onVerified={handleVerified} onCancel={() => { setVerificationTask(null); setView('home'); }} />}
       {view === 'home' && <Home guest={auth.guest} ecolingName={ecolingName} weather={auth.guest ? guestWeather : quest?.weather} guestSuggestion={guestSuggestion} guestDifficulty={guestDifficulty} guestPoints={guestPoints} quest={quest} areas={areas} areaName={areaName} onAreaChange={chooseArea} done={done} emotion={emotion} streak={state.streak} totalPoints={state.totalPoints} busy={busy} error={error} onComplete={handleComplete} celebration={celebration} onDismissCelebrate={() => setCelebration(null)} />}
       {view === 'today' && <Stats state={state} serverBacked={!auth.guest} />}
-      {view === 'sprout' && <Sprout ecolingName={ecolingName} emotion={emotion} streak={state.streak} done={done} />}
+      {view === 'sprout' && <Sprout ecolingName={ecolingName} mood={mood} streak={state.streak} done={done} />}
       {view === 'history' && <History state={state} />}
       {view === 'profile' && <Profile state={state} auth={auth} onNav={setView} badgeCount={badges.filter((badge) => badge.earned).length} prefs={prefs} onReset={handleReset} />}
       {view === 'badges' && <Badges state={state} badges={auth.guest ? null : badges} />}

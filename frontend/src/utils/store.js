@@ -3,7 +3,10 @@
 const KEY = 'ecolings-state-v2';
 
 function dateKey(d = new Date()) {
-  return d.toISOString().slice(0, 10); // YYYY-MM-DD
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 function todayKey() {
   return dateKey();
@@ -97,12 +100,43 @@ export function completeToday(state, { habit, points, difficulty, weather }) {
   return next;
 }
 
-// Pet emotion is derived, not a stored health bar.
+function daysSince(date) {
+  if (!date) return null;
+  const [year, month, day] = date.split('-').map(Number);
+  const completed = new Date(year, month - 1, day);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.round((today - completed) / 86_400_000));
+}
+
+// Mood is derived from care recency and streak, so it naturally changes over time.
+export function petMood(state) {
+  const inactiveDays = daysSince(state.lastCompletedDate);
+  if (inactiveDays === 0) {
+    if (state.streak >= 3) {
+      return {
+        emotion: 'excited',
+        pct: Math.min(100, 88 + state.streak * 2),
+        label: `Full of energy from a ${state.streak}-day streak!`,
+      };
+    }
+    return { emotion: 'happy', pct: 82, label: 'Happy and cared for today' };
+  }
+  if (inactiveDays === 1) {
+    return { emotion: 'normal', pct: 60, label: "Doing okay — ready for today's quest" };
+  }
+  if (inactiveDays !== null) {
+    return {
+      emotion: 'sad',
+      pct: Math.max(15, 45 - (inactiveDays - 2) * 8),
+      label: `${inactiveDays} days since your last check-in`,
+    };
+  }
+  return { emotion: 'normal', pct: 50, label: 'Curious and ready to begin' };
+}
+
 export function petEmotion(state) {
-  if (isDoneToday(state)) return state.streak >= 3 ? 'excited' : 'happy';
-  if (state.lastCompletedDate === shiftKey(-1)) return 'normal'; // streak alive, not done yet
-  if (state.log.length > 0) return 'sad'; // has history, streak broken
-  return 'normal';
+  return petMood(state).emotion;
 }
 
 // --- Stats helpers -------------------------------------------------------
