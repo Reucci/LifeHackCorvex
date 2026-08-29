@@ -1,3 +1,5 @@
+# npm install, then npm start
+
 import hashlib
 import hmac
 import os
