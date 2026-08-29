@@ -32,7 +32,7 @@ def calculate_gold(priority, temp_c=None, threshold=None):
     else:
         bonus = math.log(value, 1.5)
 
-    return 10 * value + bonus
+    return round(10 * value + bonus)
 
 
 def to_celsius(temp, unit):
@@ -70,7 +70,7 @@ def _quest(id_, title, description, category, priority, temp_c=None, threshold=N
         "description": description,
         "category": category,
         "priority": priority,
-        "gold": round(gold, 2),
+        "gold": gold,
     }
 
 
