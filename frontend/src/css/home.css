@@ -1,0 +1,4 @@
+/* Home-specific bits (shared styles live in App.css) */
+.inline-leaf {
+  font-size: 15px;
+}
