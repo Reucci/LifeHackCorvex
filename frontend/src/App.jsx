@@ -37,7 +37,7 @@ function skyForWeather(weather, guest) {
 
 const HEADER = {
   home: {}, today: { title: 'Your Impact' }, sprout: { title: 'Ecoling' },
-  history: { title: 'Calendar' }, profile: { title: 'Me', action: 'settings' },
+  history: { title: 'Calendar' }, profile: { title: 'Me' },
   badges: { title: 'Badges' }, settings: { title: 'Settings' },
   leaderboard: { title: 'Leaderboard' },
 };
@@ -173,7 +173,7 @@ export default function App() {
 
   return (
     <div className={`app-container weather-bg weather-bg--${sky}`} style={{ backgroundImage: `url("${skyImage(sky)}")` }}>
-      <Header title={headerCfg.title} action={headerCfg.action} onMenu={() => setMenuOpen(true)} onAction={() => setView('settings')} />
+      <Header title={headerCfg.title} onMenu={() => setMenuOpen(true)} onAction={() => setView('settings')} />
       {view === 'home' && <Home guest={auth.guest} weather={auth.guest ? guestWeather : quest?.weather} guestSuggestion={guestSuggestion} guestDifficulty={guestDifficulty} guestPoints={guestPoints} quest={quest} areas={areas} areaName={areaName} onAreaChange={chooseArea} done={done} emotion={emotion} streak={state.streak} totalPoints={state.totalPoints} busy={busy} error={error} onComplete={handleComplete} celebration={celebration} onDismissCelebrate={() => setCelebration(null)} />}
       {view === 'today' && <Stats state={state} serverBacked={!auth.guest} />}
       {view === 'sprout' && <Sprout emotion={emotion} streak={state.streak} done={done} />}
