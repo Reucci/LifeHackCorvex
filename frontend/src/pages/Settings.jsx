@@ -49,6 +49,18 @@ export default function Settings({ auth, prefs: serverPrefs, onPrefs, onLogout, 
           />
         </label>
 
+        <label className="settings-field">
+          <span className="settings-label">Ecoling name</span>
+          <input
+            className="login-input"
+            type="text"
+            value={prefs.ecoling_name ?? prefs.ecolingName ?? ''}
+            onChange={(e) => update(auth?.guest ? { ecolingName: e.target.value } : { ecoling_name: e.target.value })}
+            maxLength={24}
+            placeholder="Name your companion"
+          />
+        </label>
+
         <div className="settings-row">
           <span className="settings-label">Account</span>
           <span className="settings-value">

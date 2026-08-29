@@ -48,13 +48,13 @@ function LiveQuestCard({ quest, weather, busy, onComplete }) {
 }
 
 export default function Home({
-  guest, weather, guestSuggestion, guestDifficulty, guestPoints, quest, areas, areaName,
+  guest, ecolingName, weather, guestSuggestion, guestDifficulty, guestPoints, quest, areas, areaName,
   onAreaChange, done, emotion, streak, totalPoints, busy, error, onComplete, celebration,
   onDismissCelebrate,
 }) {
   return (
     <div className="content">
-      <Chicken emotion={emotion} bubble={done ? 'Great job! Ecoling is happy! 🍃' : `${greeting()} Let's help the planet together 🌱`} celebrate={done} />
+      <Chicken emotion={emotion} bubble={done ? `Great job! ${ecolingName || 'Your Ecoling'} is happy! 🍃` : `${greeting()} ${ecolingName ? `${ecolingName} is ready to help` : "Let's help"} the planet 🌱`} celebrate={done} />
       {celebration ? (
         <div className="card celebrate-card">
           <div className="celebrate-label">You earned</div>

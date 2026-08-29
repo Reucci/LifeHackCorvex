@@ -7,11 +7,12 @@ const MOOD = {
   sad: { label: 'Feeling neglected', pct: 20 },
 };
 
-export default function Sprout({ emotion, streak, done }) {
+export default function Sprout({ ecolingName, emotion, streak, done }) {
   const mood = MOOD[emotion] || MOOD.normal;
+  const name = ecolingName || 'Your Ecoling';
   return (
     <div className="content">
-        <Chicken emotion={emotion} bubble="Thank you for taking care of me! ❤️" celebrate />
+        <Chicken emotion={emotion} bubble={`Thank you for taking care of me! Love, ${name} ❤️`} celebrate />
 
         <div className="card">
           <div className="mood-line">
@@ -25,15 +26,15 @@ export default function Sprout({ emotion, streak, done }) {
         </div>
 
         <div className="card">
-          <div className="card-title">About Ecoling</div>
+          <div className="card-title">About {name}</div>
           <p className="about-text">
-            Ecoling loves fresh air and sunny days. Ecoling thrives when you complete
+            {name} loves fresh air and sunny days. {name} thrives when you complete
             the daily weather suggestion and keep your streak going.
           </p>
           <p className="about-text">
             {done
-              ? "You checked in today — Ecoling can feel it. 💚"
-              : "Ecoling is waiting for today's action. 🌱"}
+              ? `You checked in today — ${name} can feel it. 💚`
+              : `${name} is waiting for today's action. 🌱`}
             {streak > 0 && ` Current streak: ${streak} day${streak === 1 ? '' : 's'}.`}
           </p>
         </div>

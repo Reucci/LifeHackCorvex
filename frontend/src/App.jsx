@@ -13,6 +13,7 @@ import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Leaderboard from './pages/Leaderboard';
 import CameraVerification from './pages/CameraVerification';
+import NameEcoling from './components/NameEcoling';
 import { MOCK_WEATHER, pickSuggestion, difficultyFor } from './utils/weather';
 import { completeToday, isDoneToday, loadState, petEmotion, resetState } from './utils/store';
 import { clearAuth, loadAuth, logout as apiLogout } from './utils/auth';
@@ -78,6 +79,7 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [celebration, setCelebration] = useState(null);
   const [verificationTask, setVerificationTask] = useState(null);
+  const [namePromptDismissed, setNamePromptDismissed] = useState(false);
   const authUserId = auth?.user?.id;
 
   const showToast = useCallback((message) => {
@@ -189,7 +191,7 @@ export default function App() {
     } finally { setBusy(false); }
   };
 
-  const handleLogout = async () => { await apiLogout(); clearAuth(); setAuth(null); setView('home'); };
+  const handleLogout = async () => { await apiLogout(); clearAuth(); setAuth(null); setNamePromptDismissed(false); setView('home'); };
   const handlePrefs = async (next) => {
     if (auth.guest) { setPrefs(next); return; }
     setPrefs(await savePreferences(next));
@@ -199,15 +201,20 @@ export default function App() {
     else await resetProgress();
     window.location.reload();
   };
+  const ecolingName = prefs?.ecoling_name ?? prefs?.ecolingName ?? '';
+  const handleEcolingName = async (name) => {
+    await handlePrefs({ ...prefs, ecoling_name: name });
+    setNamePromptDismissed(false);
+  };
   const headerCfg = HEADER[view] || {};
 
   return (
     <div className={`app-container weather-bg weather-bg--${sky}`} style={{ backgroundImage: `url("${skyImage(sky)}")` }}>
       {view !== 'verify' && <Header title={headerCfg.title} action={headerCfg.action} onMenu={() => setMenuOpen(true)} onAction={() => setView('settings')} />}
       {view === 'verify' && <CameraVerification task={verificationTask?.task || { action: 'Complete your task', icon: '🌱' }} onVerified={handleVerified} onCancel={() => { setVerificationTask(null); setView('home'); }} />}
-      {view === 'home' && <Home guest={auth.guest} weather={auth.guest ? guestWeather : quest?.weather} guestSuggestion={guestSuggestion} guestDifficulty={guestDifficulty} guestPoints={guestPoints} quest={quest} areas={areas} areaName={areaName} onAreaChange={chooseArea} done={done} emotion={emotion} streak={state.streak} totalPoints={state.totalPoints} busy={busy} error={error} onComplete={handleComplete} celebration={celebration} onDismissCelebrate={() => setCelebration(null)} />}
+      {view === 'home' && <Home guest={auth.guest} ecolingName={ecolingName} weather={auth.guest ? guestWeather : quest?.weather} guestSuggestion={guestSuggestion} guestDifficulty={guestDifficulty} guestPoints={guestPoints} quest={quest} areas={areas} areaName={areaName} onAreaChange={chooseArea} done={done} emotion={emotion} streak={state.streak} totalPoints={state.totalPoints} busy={busy} error={error} onComplete={handleComplete} celebration={celebration} onDismissCelebrate={() => setCelebration(null)} />}
       {view === 'today' && <Stats state={state} serverBacked={!auth.guest} />}
-      {view === 'sprout' && <Sprout emotion={emotion} streak={state.streak} done={done} />}
+      {view === 'sprout' && <Sprout ecolingName={ecolingName} emotion={emotion} streak={state.streak} done={done} />}
       {view === 'history' && <History state={state} />}
       {view === 'profile' && <Profile state={state} auth={auth} onNav={setView} badgeCount={badges.filter((badge) => badge.earned).length} prefs={prefs} onReset={handleReset} />}
       {view === 'badges' && <Badges state={state} badges={auth.guest ? null : badges} />}
@@ -216,6 +223,9 @@ export default function App() {
       {view !== 'verify' && <Navigation active={view} onNavClick={setView} />}
       {view !== 'verify' && <Menu open={menuOpen} onClose={() => setMenuOpen(false)} active={view} onNav={setView} />}
       {view !== 'verify' && <Toast message={toast} />}
+      {!auth.guest && prefs && !ecolingName && !namePromptDismissed && (
+        <NameEcoling onSave={handleEcolingName} onDismiss={() => setNamePromptDismissed(true)} />
+      )}
     </div>
   );
 }

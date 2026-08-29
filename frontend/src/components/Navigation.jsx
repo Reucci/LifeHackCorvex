@@ -1,10 +1,4 @@
-const NAV_ITEMS = [
-  { name: 'Home', icon: '🏠', view: 'home' },
-  { name: 'Ecoling', icon: '🐥', view: 'sprout' },
-  { name: 'Calendar', icon: '📅', view: 'history' },
-  { name: 'Leaders', icon: '🏆', view: 'leaderboard' },
-  { name: 'Profile', icon: '👤', view: 'profile' },
-];
+import { NAV_ITEMS } from '../utils/navigation';
 
 export default function Navigation({ active, onNavClick }) {
   return (
@@ -14,6 +8,7 @@ export default function Navigation({ active, onNavClick }) {
           key={item.name}
           className={`nav-item${active === item.view ? ' nav-item--active' : ''}`}
           onClick={() => onNavClick(item.view)}
+          type="button"
         >
           <span className="nav-icon">{item.icon}</span>
           <span className="nav-label">{item.name}</span>

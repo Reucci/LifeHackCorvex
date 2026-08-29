@@ -524,9 +524,9 @@
   width: 100%;
   max-width: 440px;
   transform: translateX(-50%);
-  display: flex;
-  justify-content: space-around;
-  padding: 10px 4px 16px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding: 10px 8px calc(16px + env(safe-area-inset-bottom));
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(8px);
   border-top: 1px solid #e7f0df;
@@ -539,7 +539,10 @@
   gap: 3px;
   font-size: 10px;
   color: var(--muted);
-  padding: 4px 8px;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  padding: 4px 2px;
 }
 .nav-item--active { color: var(--forest); font-weight: 700; }
 .nav-icon { font-size: 18px; filter: grayscale(0.45); }
@@ -627,6 +630,26 @@
 }
 
 /* ---- Login ---- */
+.name-ecoling-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(30, 48, 33, 0.58);
+  backdrop-filter: blur(5px);
+}
+.name-ecoling-card {
+  width: min(100%, 360px);
+  margin: 0;
+  text-align: center;
+}
+.name-ecoling-card p { margin: 8px 0 18px; color: var(--muted); line-height: 1.5; }
+.name-ecoling-card .login-field { text-align: left; }
+.name-ecoling-card .ghost-btn { margin-top: 4px; }
+.name-ecoling-avatar { margin-bottom: 8px; font-size: 48px; line-height: 1; }
+
 .login-content {
   display: flex;
   flex-direction: column;
@@ -949,4 +972,4 @@
 .friend-add .action-btn { width: auto; margin: 0; padding-inline: 1rem; }
 .friend-list { list-style: none; margin: 0.8rem 0 0; padding: 0; }
 .friend-list li { display: flex; justify-content: space-between; align-items: center; padding: 0.55rem 0; border-top: 1px solid rgba(40,115,79,.13); }
-@media (max-width: 420px) { .bottom-nav { overflow-x: auto; justify-content: flex-start; } .nav-item { min-width: 62px; } .leaderboard-row { grid-template-columns: 2.5rem 1fr auto; } }
+@media (max-width: 420px) { .leaderboard-row { grid-template-columns: 2.5rem 1fr auto; } }

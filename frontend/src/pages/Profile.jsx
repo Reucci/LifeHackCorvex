@@ -6,6 +6,7 @@ export default function Profile({ state, auth, onNav, badgeCount, prefs: serverP
   const intoLevel = state.totalPoints % 250;
   const prefs = serverPrefs || loadPrefs();
   const badges = badgeCount ?? earnedCount(state);
+  const ecolingName = prefs.ecoling_name ?? prefs.ecolingName ?? 'Ecoling';
 
   const rows = [
     { icon: '📊', label: 'My Stats', view: 'today' },
@@ -16,7 +17,7 @@ export default function Profile({ state, auth, onNav, badgeCount, prefs: serverP
       meta: prefs.reminders ? 'ON' : 'OFF',
       view: 'settings',
     },
-    { icon: 'ℹ️', label: 'About Ecoling', view: 'sprout' },
+    { icon: 'ℹ️', label: `About ${ecolingName || 'Ecoling'}`, view: 'sprout' },
     { icon: '⚙️', label: 'Settings', view: 'settings' },
   ];
 

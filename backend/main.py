@@ -84,6 +84,7 @@ class CompleteQuestRequest(BaseModel):
 
 class Preferences(BaseModel):
     display_name: str = Field(default="Eco Friend", max_length=24)
+    ecoling_name: str = Field(default="", max_length=24)
     reminders: bool = False
     reminder_time: str = Field(default="09:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     quiet_hours: bool = True

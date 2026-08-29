@@ -5,6 +5,7 @@ const KEY = 'ecolings-prefs-v1';
 
 const DEFAULTS = {
   displayName: 'Leafy Friend',
+  ecolingName: '',
   reminders: true,
   reminderTime: '18:00',
   quietHours: true,

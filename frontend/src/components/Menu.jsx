@@ -1,25 +1,9 @@
-import { resetState } from '../utils/store';
-
-const ITEMS = [
-  { name: 'Home', icon: '🏠', view: 'home' },
-  { name: 'Your Impact', icon: '📊', view: 'today' },
-  { name: 'Ecoling', icon: '🌱', view: 'sprout' },
-  { name: 'History', icon: '📋', view: 'history' },
-  { name: 'Leaderboard', icon: '🏆', view: 'leaderboard' },
-  { name: 'Me', icon: '👤', view: 'profile' },
-];
+import { NAV_ITEMS } from '../utils/navigation';
 
 export default function Menu({ open, onClose, active, onNav }) {
   const go = (view) => {
     onNav(view);
     onClose();
-  };
-
-  const handleReset = () => {
-    if (window.confirm('Reset all progress? (demo helper)')) {
-      resetState();
-      window.location.reload();
-    }
   };
 
   return (
@@ -35,11 +19,12 @@ export default function Menu({ open, onClose, active, onNav }) {
         </div>
 
         <nav className="drawer-nav">
-          {ITEMS.map((item) => (
+          {NAV_ITEMS.map((item) => (
             <button
               key={item.view}
               className={`drawer-item${active === item.view ? ' drawer-item--active' : ''}`}
               onClick={() => go(item.view)}
+              type="button"
             >
               <span className="drawer-item-icon">{item.icon}</span>
               {item.name}
@@ -47,9 +32,6 @@ export default function Menu({ open, onClose, active, onNav }) {
           ))}
         </nav>
 
-        <div className="drawer-foot">
-          <button className="ghost-btn" onClick={handleReset}>Reset progress (demo)</button>
-        </div>
       </aside>
     </>
   );
