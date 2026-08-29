@@ -45,7 +45,9 @@
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: 6px 18px 96px;
+  padding: 6px 18px 88px;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ---- Card base ---- */
@@ -65,12 +67,12 @@
 /* ---- Chicken + speech bubble (textbox on top) ---- */
 .chicken-block {
   text-align: center;
-  margin: 4px 0 16px;
+  margin: 4px 0 10px;
 }
 .speech-bubble {
   display: inline-block;
   position: relative;
-  background: var(--butter);
+  background: var(--card);
   color: var(--ink);
   padding: 12px 18px;
   border-radius: 18px;
@@ -80,6 +82,13 @@
   max-width: 280px;
   margin-bottom: 6px;
   box-shadow: var(--shadow);
+  transition: background 0.2s ease;
+}
+.speech-bubble--celebrate {
+  background: var(--butter);
+}
+.speech-bubble--celebrate::after {
+  border-color: var(--butter) transparent transparent;
 }
 .speech-bubble::after {
   content: "";
@@ -89,18 +98,18 @@
   transform: translateX(-50%);
   border-width: 8px 8px 0;
   border-style: solid;
-  border-color: var(--butter) transparent transparent;
+  border-color: var(--card) transparent transparent;
 }
 .chicken-scene {
   display: flex;
   justify-content: center;
   align-items: flex-end;
   background: radial-gradient(circle at 50% 65%, #cfe7c0 0%, rgba(207, 231, 192, 0) 70%);
-  padding: 8px 0;
+  padding: 4px 0;
 }
 .chicken-image {
-  width: 180px;
-  max-width: 60%;
+  width: clamp(160px, 26vh, 260px);
+  max-width: 68%;
   height: auto;
   filter: drop-shadow(0 10px 14px rgba(74, 111, 70, 0.22));
   transition: transform 0.2s ease;
@@ -234,9 +243,14 @@
 }
 
 /* ---- Home stat pills ---- */
-.stat-row { display: flex; gap: 12px; margin-bottom: 14px; }
+.stat-row { flex: 1; display: flex; gap: 12px; margin-bottom: 0; align-items: stretch; }
 .stat-pill {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   background: rgba(255, 255, 255, 0.85);
   border-radius: 16px;
   padding: 12px;
@@ -317,6 +331,12 @@
   margin: 6px 4px 10px;
 }
 .history-list { display: flex; flex-direction: column; gap: 10px; }
+.history-list--scroll {
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.show-more-btn { margin-top: 10px; }
 .history-item {
   display: flex;
   align-items: center;
@@ -457,14 +477,19 @@
 
 /* ---- Bottom nav ---- */
 .bottom-nav {
-  position: sticky;
+  position: fixed;
+  left: 50%;
   bottom: 0;
+  width: 100%;
+  max-width: 440px;
+  transform: translateX(-50%);
   display: flex;
   justify-content: space-around;
   padding: 10px 4px 16px;
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(8px);
   border-top: 1px solid #e7f0df;
+  z-index: 20;
 }
 .nav-item {
   display: flex;
@@ -841,4 +866,16 @@
 }
 @keyframes toast-in {
   from { opacity: 0; transform: translate(-50%, 10px); }
+}
+
+/* ---- Tighten Home layout on short screens so it fits without scrolling ---- */
+@media (max-height: 700px) {
+  .chicken-block { margin-bottom: 2px; }
+  .speech-bubble { padding: 8px 14px; }
+  .chicken-scene { padding: 0; }
+  .chicken-image { width: clamp(130px, 19vh, 260px); }
+  .suggestion-card { padding: 14px 16px; }
+  .weather-info { padding: 6px 10px; margin-bottom: 6px; }
+  .suggestion-text { margin-bottom: 6px; }
+  .action-btn { padding: 11px; }
 }

@@ -27,7 +27,7 @@ const HEADER = {
   home: {},
   today: { title: 'Your Impact' },
   sprout: { title: 'Ecoling' },
-  history: { title: 'History' },
+  history: { title: 'Calendar' },
   profile: { title: 'Me', action: 'settings' },
   badges: { title: 'Badges' },
   settings: { title: 'Settings' },

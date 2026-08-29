@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const MONTHS = [
@@ -15,11 +15,14 @@ function prettyDate(iso) {
   return `${MONTHS[m - 1]} ${d}, ${y}`;
 }
 
+const VISIBLE_LIMIT = 3;
+
 export default function History({ state }) {
   const now = new Date();
   const todayStr = ymd(now.getFullYear(), now.getMonth(), now.getDate());
   const [cursor, setCursor] = useState({ y: now.getFullYear(), m: now.getMonth() });
   const [selected, setSelected] = useState(null);
+  const [expanded, setExpanded] = useState(false);
 
   const completed = new Set(state.completedDates);
 
@@ -39,6 +42,13 @@ export default function History({ state }) {
   const visible = selected
     ? state.log.filter((e) => e.date === selected)
     : state.log;
+
+  useEffect(() => {
+    setExpanded(false);
+  }, [selected]);
+
+  const displayed = expanded ? visible : visible.slice(0, VISIBLE_LIMIT);
+  const hasMore = visible.length > VISIBLE_LIMIT;
 
   return (
     <div className="content">
@@ -91,8 +101,8 @@ export default function History({ state }) {
           <div className="empty-state">No action logged on this day.</div>
         )}
 
-        <div className="history-list">
-          {visible.map((entry, i) => (
+        <div className={`history-list${expanded ? ' history-list--scroll' : ''}`}>
+          {displayed.map((entry, i) => (
             <div className="history-item" key={`${entry.date}-${i}`}>
               <div className="history-icon">{entry.weather?.icon || '🍃'}</div>
               <div className="history-body">
@@ -107,6 +117,12 @@ export default function History({ state }) {
             </div>
           ))}
         </div>
+
+        {hasMore && !expanded && (
+          <button className="ghost-btn show-more-btn" onClick={() => setExpanded(true)}>
+            Show More
+          </button>
+        )}
     </div>
   );
 }

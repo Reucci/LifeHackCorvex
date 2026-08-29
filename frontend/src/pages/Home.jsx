@@ -39,6 +39,7 @@ export default function Home({
       <Chicken
         emotion={emotion}
         bubble={done ? 'Great job! Ecoling is happy! 🍃' : `${greeting()} Let's help the planet together 🌱`}
+        celebrate={done}
       />
 
       {showCelebrate ? (

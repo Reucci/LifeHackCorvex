@@ -1,9 +1,9 @@
 const NAV_ITEMS = [
   { name: 'Home', icon: '🏠', view: 'home' },
-  { name: 'Today', icon: '📅', view: 'today' },
-  { name: 'Ecoling', icon: '🌱', view: 'sprout' },
-  { name: 'History', icon: '📋', view: 'history' },
-  { name: 'Me', icon: '👤', view: 'profile' },
+  { name: 'Impact', icon: '📊', view: 'today' },
+  { name: 'Ecoling', icon: '🐥', view: 'sprout' },
+  { name: 'Calendar', icon: '📅', view: 'history' },
+  { name: 'Profile', icon: '👤', view: 'profile' },
 ];
 
 export default function Navigation({ active, onNavClick }) {

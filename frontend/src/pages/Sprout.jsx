@@ -11,7 +11,7 @@ export default function Sprout({ emotion, streak, done }) {
   const mood = MOOD[emotion] || MOOD.normal;
   return (
     <div className="content">
-        <Chicken emotion={emotion} bubble="Thank you for taking care of me! ❤️" />
+        <Chicken emotion={emotion} bubble="Thank you for taking care of me! ❤️" celebrate />
 
         <div className="card">
           <div className="mood-line">

@@ -6,11 +6,15 @@ const IMG = {
   sad: 'sad',
 };
 
-export default function Chicken({ emotion = 'normal', bubble }) {
+export default function Chicken({ emotion = 'normal', bubble, celebrate }) {
   const file = IMG[emotion] || 'normal';
   return (
     <div className="chicken-block">
-      {bubble && <div className="speech-bubble">{bubble}</div>}
+      {bubble && (
+        <div className={`speech-bubble${celebrate ? ' speech-bubble--celebrate' : ''}`}>
+          {bubble}
+        </div>
+      )}
       <div className={`chicken-scene chicken--${emotion}`}>
         <img
           src={`/images/${file}.png`}
