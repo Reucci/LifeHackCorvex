@@ -1,5 +1,6 @@
-// FRONTEND MOCK — no weather API yet. Swap `MOCK_WEATHER` / `getWeather()` for a
-// real fetch later; the rule table below stays exactly the same.
+// Live weather via Open-Meteo (free, key-less, CORS-friendly). We ask the browser
+// for the user's location; if that is denied or the request fails we fall back to
+// MOCK_WEATHER so the rest of the app keeps working unchanged.
 
 export const MOCK_WEATHER = {
   temp: 18,
@@ -9,7 +10,109 @@ export const MOCK_WEATHER = {
   condition: 'Chilly & dry',
   icon: '🌤️',
   place: 'Singapore',
+  sky: 'partly', // one of: sunny | partly | overcast | rainy  -> drives the background
+  offline: true,
 };
+
+// WMO weather codes -> the four background "moods" we have artwork for.
+// https://open-meteo.com/en/docs  (weather_code table)
+function skyFromCode(code) {
+  if (code === 0 || code === 1) return 'sunny';
+  if (code === 2) return 'partly';
+  if (code === 3 || code === 45 || code === 48) return 'overcast';
+  if (code >= 71 && code <= 77) return 'overcast'; // snow -> use the grey scene
+  if (code >= 85 && code <= 86) return 'overcast'; // snow showers
+  return 'rainy'; // 51-67 drizzle/rain, 80-82 showers, 95-99 thunderstorm
+}
+
+const CODE_TEXT = {
+  0: ['Clear sky', '☀️'],
+  1: ['Mainly clear', '🌤️'],
+  2: ['Partly cloudy', '⛅'],
+  3: ['Overcast', '☁️'],
+  45: ['Foggy', '🌫️'],
+  48: ['Freezing fog', '🌫️'],
+  51: ['Light drizzle', '🌦️'],
+  53: ['Drizzle', '🌦️'],
+  55: ['Heavy drizzle', '🌧️'],
+  61: ['Light rain', '🌦️'],
+  63: ['Rain', '🌧️'],
+  65: ['Heavy rain', '🌧️'],
+  71: ['Light snow', '🌨️'],
+  73: ['Snow', '🌨️'],
+  75: ['Heavy snow', '❄️'],
+  80: ['Rain showers', '🌦️'],
+  81: ['Rain showers', '🌧️'],
+  82: ['Violent showers', '⛈️'],
+  95: ['Thunderstorm', '⛈️'],
+  96: ['Thunderstorm', '⛈️'],
+  99: ['Thunderstorm', '⛈️'],
+};
+
+function describeCode(code) {
+  return CODE_TEXT[code] || ['Current weather', '🌡️'];
+}
+
+function getPosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('Geolocation unavailable'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      timeout: 8000,
+      maximumAge: 30 * 60 * 1000,
+    });
+  });
+}
+
+// Rough location from IP — no permission prompt. Used when geolocation is denied.
+async function getPositionByIP() {
+  const res = await fetch('https://ipapi.co/json/');
+  if (!res.ok) throw new Error(`IP lookup ${res.status}`);
+  const d = await res.json();
+  if (typeof d.latitude !== 'number') throw new Error('IP lookup: no coords');
+  return { coords: { latitude: d.latitude, longitude: d.longitude } };
+}
+
+// Fetches live weather for the user's location. Always resolves — never throws —
+// so callers can do `getWeather().then(setWeather)` without a catch.
+export async function getWeather() {
+  try {
+    let coords;
+    try {
+      ({ coords } = await getPosition());
+    } catch {
+      ({ coords } = await getPositionByIP());
+    }
+    const { latitude, longitude } = coords;
+    const url =
+      'https://api.open-meteo.com/v1/forecast' +
+      `?latitude=${latitude.toFixed(3)}&longitude=${longitude.toFixed(3)}` +
+      '&current=temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation,weather_code' +
+      '&wind_speed_unit=ms&timezone=auto';
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Weather API ${res.status}`);
+    const data = await res.json();
+    const c = data.current || {};
+    const [condition, icon] = describeCode(c.weather_code);
+
+    return {
+      temp: Math.round(c.temperature_2m),
+      humidity: Math.round(c.relative_humidity_2m),
+      windSpeed: Math.round(c.wind_speed_10m),
+      isRaining: (c.precipitation ?? 0) > 0,
+      condition,
+      icon,
+      place: (data.timezone || '').split('/').pop().replace(/_/g, ' ') || 'Your area',
+      sky: skyFromCode(c.weather_code),
+      offline: false,
+    };
+  } catch {
+    return { ...MOCK_WEATHER };
+  }
+}
 
 // --- The rule table: conditions -> one specific smart action --------------
 const RULES = [

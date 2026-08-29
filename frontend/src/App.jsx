@@ -20,6 +20,20 @@ import {
 } from './utils/api';
 import './css/App.css';
 
+const SKY_CLASSES = ['sunny', 'partly', 'overcast', 'rainy'];
+
+const skyImage = (sky) => `${process.env.PUBLIC_URL}/images/weather-${sky}.png`;
+
+function skyForWeather(weather, guest) {
+  if (guest && SKY_CLASSES.includes(weather?.sky)) return weather.sky;
+  const condition = (weather?.forecast?.condition || '').toLowerCase();
+  const rainfall = weather?.observations?.rainfall?.value || 0;
+  if (rainfall > 0 || /(rain|shower|thunder)/.test(condition)) return 'rainy';
+  if (/(fair|sunny|clear)/.test(condition)) return 'sunny';
+  if (/(cloud|overcast|fog|haze)/.test(condition)) return 'overcast';
+  return 'partly';
+}
+
 const HEADER = {
   home: {}, today: { title: 'Your Impact' }, sprout: { title: 'Ecoling' },
   history: { title: 'Calendar' }, profile: { title: 'Me', action: 'settings' },
@@ -117,6 +131,7 @@ export default function App() {
   const guestSuggestion = pickSuggestion(guestWeather);
   const guestDifficulty = difficultyFor(guestWeather);
   const guestPoints = Math.round(25 * guestDifficulty);
+  const sky = skyForWeather(auth.guest ? guestWeather : quest?.weather, auth.guest);
   const done = auth.guest ? isDoneToday(state) : Boolean(quest?.completed);
   const emotion = auth.guest ? petEmotion(state) : (auth.user.ecoling_state === 'thriving' ? 'happy' : 'normal');
 
@@ -155,7 +170,7 @@ export default function App() {
   const headerCfg = HEADER[view] || {};
 
   return (
-    <div className="app-container">
+    <div className={`app-container weather-bg weather-bg--${sky}`} style={{ backgroundImage: `url("${skyImage(sky)}")` }}>
       <Header title={headerCfg.title} action={headerCfg.action} onMenu={() => setMenuOpen(true)} onAction={() => setView('settings')} />
       {view === 'home' && <Home guest={auth.guest} weather={auth.guest ? guestWeather : quest?.weather} guestSuggestion={guestSuggestion} guestDifficulty={guestDifficulty} guestPoints={guestPoints} quest={quest} areas={areas} areaName={areaName} onAreaChange={chooseArea} done={done} emotion={emotion} streak={state.streak} totalPoints={state.totalPoints} busy={busy} error={error} onComplete={handleComplete} celebration={celebration} onDismissCelebrate={() => setCelebration(null)} />}
       {view === 'today' && <Stats state={state} serverBacked={!auth.guest} />}

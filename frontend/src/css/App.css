@@ -10,6 +10,46 @@
   overflow: hidden;
 }
 
+/* ---- Weather-driven background --------------------------------------------
+   App.jsx sets the photo (/public/images/weather-<mood>.png, via PUBLIC_URL)
+   inline as the background. The art is pre-extended (scripts/extend-weather-
+   images.py) to a tall portrait crop — the foreground clearing is stretched
+   downward into shadow — so it fills the phone frame. The per-mood colour below
+   matches that shadowed bottom edge for any sliver past it. Categories come
+   from utils/weather.js. */
+.weather-bg {
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: 100% auto;      /* full width; both framing trees stay in frame */
+  background-attachment: scroll;   /* stay inside the frame, not the whole page */
+  transition: background-image 0.5s ease;
+}
+/* The scrolling content sits on top of the scene — keep it transparent so the
+   weather art shows through above and around the (opaque) cards. */
+.weather-bg .content {
+  background: transparent;
+}
+/* Text that sits directly on the forest backdrop (section headers, ghost
+   buttons, empty states) — not inside a card — needs to be light for contrast. */
+.weather-bg .content > .log-header,
+.weather-bg .content > .log-header .link-btn,
+.weather-bg .content > .ghost-btn,
+.weather-bg .content > .section-title {
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+.weather-bg .content > .ghost-btn {
+  border-color: rgba(255, 255, 255, 0.7);
+}
+.weather-bg .content > .empty-state {
+  background: var(--card);
+  color: var(--forest);
+}
+.weather-bg--sunny    { background-color: #232d1c; }
+.weather-bg--partly   { background-color: #263124; }
+.weather-bg--overcast { background-color: #1b2820; }
+.weather-bg--rainy    { background-color: #15211e; }
+
 @media (min-width: 480px) {
   .app-container {
     box-shadow: 0 0 40px rgba(74, 111, 70, 0.15);
@@ -32,7 +72,8 @@
   width: 40px;
   height: 40px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--card);
+  box-shadow: var(--shadow);
   font-size: 18px;
   line-height: 1;
   display: flex;
@@ -104,14 +145,13 @@
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  background: radial-gradient(circle at 50% 65%, #cfe7c0 0%, rgba(207, 231, 192, 0) 70%);
   padding: 4px 0;
 }
 .chicken-image {
   width: clamp(160px, 26vh, 260px);
   max-width: 68%;
   height: auto;
-  filter: drop-shadow(0 10px 14px rgba(74, 111, 70, 0.22));
+  filter: drop-shadow(0 8px 10px rgba(40, 60, 40, 0.28));
   transition: transform 0.2s ease;
 }
 .chicken--excited .chicken-image {
@@ -251,10 +291,11 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--card);
   border-radius: 16px;
   padding: 12px;
   text-align: center;
+  box-shadow: var(--shadow);
 }
 .stat-value {
   display: block;
