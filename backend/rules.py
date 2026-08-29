@@ -1,10 +1,38 @@
 """Converts a weather reading into "quests": electricity-saving suggestions."""
 
+import math
 import re
 
 CONDITIONS = {"clear", "clouds", "rain", "snow", "wind", "fog", "storm"}
 
-PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
+PRIORITY_VALUE = {"high": 3, "medium": 2, "low": 1}
+
+
+def calculate_gold(priority, temp_c=None, threshold=None):
+    """Gold reward for completing a quest of the given priority.
+
+    For quests tied to a heat threshold (e.g. "use a fan" only applies once
+    it's at least 24°C), the reward scales with how far past that threshold
+    the actual temperature is:
+
+        gold = 10 * value + log_1.5(temp_c - threshold)
+
+    e.g. completing a quest at 26°C that only unlocks at 24°C gives
+    10 * value + log_1.5(26 - 24). Right at the threshold (or with no
+    threshold given), the log term drops to 0 for temp_c == threshold, or
+    falls back to log_1.5(value) when no threshold applies at all.
+    """
+    if priority not in PRIORITY_VALUE:
+        raise ValueError(f"unknown priority: {priority}")
+    value = PRIORITY_VALUE[priority]
+
+    if threshold is not None and temp_c is not None:
+        delta = temp_c - threshold
+        bonus = math.log(delta, 1.5) if delta > 0 else 0.0
+    else:
+        bonus = math.log(value, 1.5)
+
+    return 10 * value + bonus
 
 
 def to_celsius(temp, unit):
@@ -34,13 +62,15 @@ def normalize_condition(condition):
     return "unknown"
 
 
-def _quest(id_, title, description, category, priority):
+def _quest(id_, title, description, category, priority, temp_c=None, threshold=None):
+    gold = calculate_gold(priority, temp_c=temp_c, threshold=threshold)
     return {
         "id": id_,
         "title": title,
         "description": description,
         "category": category,
         "priority": priority,
+        "gold": round(gold, 2),
     }
 
 
@@ -104,32 +134,32 @@ def get_quests(temperature, unit="C", condition=None, humidity=None, wind_speed=
             "fan-over-ac",
             "Use a fan instead of the AC",
             "It's warm but not extreme - a fan uses a fraction of the power an AC does.",
-            "cooling", "high",
+            "cooling", "high", temp_c=temp_c, threshold=24,
         ))
         quests.append(_quest(
             "close-blinds",
             "Close blinds or curtains",
             "Block direct sunlight to keep the room cooler without more cooling power.",
-            "cooling", "medium",
+            "cooling", "medium", temp_c=temp_c, threshold=24,
         ))
     else:
         quests.append(_quest(
             "ac-efficient-temp",
             "Set the AC to 24-26°C (75-78°F)",
             "It's hot - the AC is warranted, but every degree colder adds ~3-5% more energy use.",
-            "cooling", "high",
+            "cooling", "high", temp_c=temp_c, threshold=28,
         ))
         quests.append(_quest(
             "avoid-oven",
             "Avoid the oven and heat-generating appliances",
             "Cooking with an oven heats the room, making the AC work harder.",
-            "cooling", "medium",
+            "cooling", "medium", temp_c=temp_c, threshold=28,
         ))
         quests.append(_quest(
             "close-blinds-hot",
             "Close blinds during peak sun",
             "Reduce solar heat gain so the AC doesn't have to work as hard.",
-            "cooling", "medium",
+            "cooling", "medium", temp_c=temp_c, threshold=28,
         ))
 
     # --- Condition-based suggestions ---
@@ -201,7 +231,7 @@ def get_quests(temperature, unit="C", condition=None, humidity=None, wind_speed=
         "general", "low",
     ))
 
-    quests.sort(key=lambda q: PRIORITY_RANK[q["priority"]])
+    quests.sort(key=lambda q: PRIORITY_VALUE[q["priority"]], reverse=True)
 
     return {
         "weather": {
