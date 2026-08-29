@@ -8,8 +8,12 @@ import History from './pages/History';
 import Stats from './pages/Stats';
 import Sprout from './pages/Sprout';
 import Profile from './pages/Profile';
+import Badges from './pages/Badges';
+import Settings from './pages/Settings';
+import Login from './pages/Login';
 import { MOCK_WEATHER, pickSuggestion, difficultyFor } from './utils/weather';
 import { loadState, completeToday, isDoneToday, petEmotion } from './utils/store';
+import { loadAuth, clearAuth, logout as apiLogout } from './utils/auth';
 import './css/App.css';
 
 const BASE_POINTS = 25;
@@ -25,18 +29,30 @@ const HEADER = {
   sprout: { title: 'Ecoling' },
   history: { title: 'History' },
   profile: { title: 'Me', action: 'settings' },
+  badges: { title: 'Badges' },
+  settings: { title: 'Settings' },
 };
 
 export default function App() {
+  const [auth, setAuth] = useState(loadAuth);
   const [view, setView] = useState('home');
   const [state, setState] = useState(loadState);
   const [toast, setToast] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
 
   const showToast = useCallback((msg) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2400);
   }, []);
+
+  if (!auth) {
+    return (
+      <div className="app-container">
+        <Login onAuthed={(a) => { setAuth(a); setView('home'); }} />
+      </div>
+    );
+  }
 
   const done = isDoneToday(state);
   const emotion = petEmotion(state);
@@ -51,6 +67,7 @@ export default function App() {
       weather: { icon: weather.icon, condition: weather.condition, temp: weather.temp },
     });
     setState(next);
+    setCelebrate(true);
     showToast(
       difficulty > 1
         ? `+${points} 🍃 — tough weather today, nice work!`
@@ -58,11 +75,23 @@ export default function App() {
     );
   };
 
+  const handleLogout = async () => {
+    await apiLogout();
+    clearAuth();
+    setAuth(null);
+    setView('home');
+  };
+
   const headerCfg = HEADER[view] || {};
 
   return (
     <div className="app-container">
-      <Header title={headerCfg.title} action={headerCfg.action} onMenu={() => setMenuOpen(true)} />
+      <Header
+        title={headerCfg.title}
+        action={headerCfg.action}
+        onMenu={() => setMenuOpen(true)}
+        onAction={() => headerCfg.action === 'settings' && setView('settings')}
+      />
 
       {view === 'home' && (
         <Home
@@ -75,12 +104,18 @@ export default function App() {
           streak={state.streak}
           totalPoints={state.totalPoints}
           onComplete={handleComplete}
+          celebrate={celebrate}
+          onDismissCelebrate={() => setCelebrate(false)}
         />
       )}
       {view === 'today' && <Stats state={state} />}
       {view === 'sprout' && <Sprout emotion={emotion} streak={state.streak} done={done} />}
       {view === 'history' && <History state={state} />}
-      {view === 'profile' && <Profile state={state} onNav={setView} />}
+      {view === 'profile' && <Profile state={state} auth={auth} onNav={setView} />}
+      {view === 'badges' && <Badges state={state} />}
+      {view === 'settings' && (
+        <Settings auth={auth} onLogout={handleLogout} />
+      )}
 
       <Navigation active={view} onNavClick={setView} />
       <Menu open={menuOpen} onClose={() => setMenuOpen(false)} active={view} onNav={setView} />

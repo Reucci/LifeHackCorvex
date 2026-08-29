@@ -1,16 +1,25 @@
 import { resetState } from '../utils/store';
+import { earnedCount } from '../utils/badges';
+import { loadPrefs } from '../utils/prefs';
 
-const ROWS = [
-  { icon: '📊', label: 'My Stats', view: 'today' },
-  { icon: '🏅', label: 'Badges', badge: 'New!' },
-  { icon: '🔔', label: 'Reminders', meta: 'ON' },
-  { icon: 'ℹ️', label: 'About Ecoling', view: 'sprout' },
-  { icon: '⚙️', label: 'Settings' },
-];
-
-export default function Profile({ state, onNav }) {
+export default function Profile({ state, auth, onNav }) {
   const level = Math.floor(state.totalPoints / 250) + 1;
   const intoLevel = state.totalPoints % 250;
+  const prefs = loadPrefs();
+  const badges = earnedCount(state);
+
+  const rows = [
+    { icon: '📊', label: 'My Stats', view: 'today' },
+    { icon: '🏅', label: 'Badges', meta: `${badges}`, view: 'badges' },
+    {
+      icon: '🔔',
+      label: 'Reminders',
+      meta: prefs.reminders ? 'ON' : 'OFF',
+      view: 'settings',
+    },
+    { icon: 'ℹ️', label: 'About Ecoling', view: 'sprout' },
+    { icon: '⚙️', label: 'Settings', view: 'settings' },
+  ];
 
   const handleReset = () => {
     if (window.confirm('Reset all progress? (demo helper)')) {
@@ -24,8 +33,13 @@ export default function Profile({ state, onNav }) {
         <div className="card profile-card">
           <div className="profile-avatar">🐤</div>
           <div className="profile-info">
-            <div className="profile-name">Leafy Friend 🍃</div>
-            <div className="profile-level">Level {level}</div>
+            <div className="profile-name">
+              {prefs.displayName} 🍃
+            </div>
+            <div className="profile-level">
+              Level {level}
+              {auth?.user?.username && !auth.guest ? ` · @${auth.user.username}` : ''}
+            </div>
             <div className="level-bar">
               <div className="level-fill" style={{ width: `${(intoLevel / 250) * 100}%` }} />
             </div>
@@ -34,7 +48,7 @@ export default function Profile({ state, onNav }) {
         </div>
 
         <div className="menu-list">
-          {ROWS.map((row) => (
+          {rows.map((row) => (
             <button
               key={row.label}
               className="menu-row"

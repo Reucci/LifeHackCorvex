@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import Chicken from '../components/Chicken';
 import '../css/home.css';
 
@@ -30,8 +29,9 @@ export default function Home({
   streak,
   totalPoints,
   onComplete,
+  celebrate,
+  onDismissCelebrate,
 }) {
-  const [celebrate, setCelebrate] = useState(true);
   const showCelebrate = done && celebrate;
 
   return (
@@ -55,7 +55,7 @@ export default function Home({
             <div className="streak-box-value">{streak} {streak === 1 ? 'day' : 'days'}</div>
             <StreakLeaves streak={streak} />
           </div>
-          <button className="action-btn" onClick={() => setCelebrate(false)}>
+          <button className="action-btn" onClick={onDismissCelebrate}>
             Back to Home
           </button>
         </div>
