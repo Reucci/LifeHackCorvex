@@ -22,3 +22,10 @@ GET https://<project-ref>.supabase.co/rest/v1/public_leaderboard
 Send the project's publishable anon key in both the `apikey` and
 `Authorization: Bearer <anon-key>` headers. Never put the database password or
 service-role key in frontend code.
+
+## Public deployment
+
+`render.yaml` deploys the FastAPI backend and React frontend as two linked
+Render services. Create a Render Blueprint from this repository and provide
+`ECOLINGS_DATABASE_URL` when prompted. The frontend is configured to call the
+public backend, and both services redeploy automatically from `main`.
